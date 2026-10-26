@@ -79,29 +79,25 @@ def chapa_ja_cadastrou(chapa):
     except: pass
     return False, None
 
-# ===== MASCARA ESTILO FOTO - BEM MENOR =====
+# ===== MASCARA ESTILO FOTO - PATRIMONIO NA FRENTE + DATA PEQUENA ULTIMA LINHA =====
 def gerar_mascara(dados):
     data_hora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    texto = f"MASCARA PATRIMONIO - {dados['pat_maquina']} | {dados['pat_otdr']} | CHAPA {dados['chapa']} | {data_hora}"
+    texto = f"MASCARA {dados['pat_maquina']} | {dados['pat_otdr']} | CHAPA {dados['chapa']} | {data_hora}"
     try:
         os.makedirs(PASTA_MASCARAS, exist_ok=True)
         nome_base = f"{dados['pat_maquina']}_{dados['pat_otdr']}_{uuid.uuid4().hex[:4]}"
         caminho_txt = os.path.join(PASTA_MASCARAS, f"{nome_base}.txt")
         caminho_png = os.path.join(PASTA_MASCARAS, f"{nome_base}.png")
         with open(caminho_txt, "w", encoding="utf-8") as f: 
-            f.write(f"MASCARA - PATRIMONIO\nMAQUINA FUSAO: {dados['pat_maquina']}\nOTDR: {dados['pat_otdr']}\nDATA: {data_hora}\nCHAPA: {dados['chapa']}\nCOLABORADOR: {dados['nome']}\nTEL: {dados['telefone']}\nFUNCAO: {dados['funcao']}\nSUPERVISOR/LIDER: {dados['lider_imediato']}\nCOORDENADOR: {dados.get('coordenador','')}")
+            f.write(f"MASCARA - PATRIMONIO\nMAQUINA FUSAO: {dados['pat_maquina']}\nOTDR: {dados['pat_otdr']}\nCHAPA: {dados['chapa']}\nCOLABORADOR: {dados['nome']}\nTEL: {dados['telefone']}\nFUNCAO: {dados['funcao']}\nSUPERVISOR/LIDER: {dados['lider_imediato']}\nCOORDENADOR: {dados.get('coordenador','')}\nDATA: {data_hora}")
 
         W, H = 850, 520
         BG = (238,238,238)
         img = Image.new('RGB', (W, H), BG)
         draw = ImageDraw.Draw(img)
         font = ImageFont.load_default()
-        try: font_b = ImageFont.truetype("DejaVuSans-Bold.ttf", 18)
-        except: font_b = font
-        try: font_n = ImageFont.truetype("DejaVuSans.ttf", 16)
-        except: font_n = font
 
-        def bold(x,y,t,c, sz=18):
+        def bold(x,y,t,c, sz=20):
             try: f = ImageFont.truetype("DejaVuSans-Bold.ttf", sz)
             except: f = font
             draw.text((x,y),t,fill=c,font=f)
@@ -109,75 +105,64 @@ def gerar_mascara(dados):
             try: f = ImageFont.truetype("DejaVuSans.ttf", sz)
             except: f = font
             draw.text((x,y),t,fill=c,font=f)
-
-        # Cartao branco
-        card = [(30,50),(820,500)]
-        draw.rounded_rectangle(card, radius=28, fill=(255,255,255))
-        # Sombra suave
-        draw.rounded_rectangle([(28,48),(822,502)], radius=28, outline=(220,220,220), width=1)
-
-        # Pill azul topo
-        pill = [(155,12),(695,78)]
-        draw.rounded_rectangle(pill, radius=30, fill=(15,76,143))
-        bold(215,26,"MASCARA - PATRIMONIO",(255,255,255),22)
+        def small(x,y,t,c, sz=11):
+            try: f = ImageFont.truetype("DejaVuSans.ttf", sz)
+            except: f = font
+            draw.text((x,y),t,fill=c,font=f)
 
         AZUL_ESC = (15,58,110)
-        AZUL_CLARO = (90,139,192)
 
-        # MAQUINA FUSAO
-        draw.text((65,102), "⚙", fill=AZUL_CLARO, font=font_b) # icone fake
-        bold(100,105,"MAQUINA FUSAO:",AZUL_ESC,20)
-        normal(100,135,f"{dados['pat_maquina']}",(15,35,70),22)
+        # Cartao branco
+        draw.rounded_rectangle([(30,50),(820,505)], radius=28, fill=(255,255,255))
 
-        # DATA
-        bold(445,108,"DATA:",AZUL_ESC,20)
-        normal(445,135,f"{data_hora}",(15,35,70),20)
+        # Pill azul topo
+        draw.rounded_rectangle([(155,12),(695,78)], radius=30, fill=(15,76,143))
+        bold(215,26,"MASCARA - PATRIMONIO",(255,255,255),22)
 
-        # OTDR
-        bold(100,185,"OTDR:",AZUL_ESC,20)
-        normal(200,185,f"{dados['pat_otdr']}",(15,35,70),20)
+        # === PATRIMONIOS NA FRENTE ===
+        bold(70,105,"MAQUINA FUSAO:",AZUL_ESC,18)
+        normal(240,108,f"{dados['pat_maquina']}",(15,35,70),20)
+
+        bold(470,105,"OTDR:",AZUL_ESC,18)
+        normal(540,108,f"{dados['pat_otdr']}",(15,35,70),20)
 
         # Linha divisoria
-        draw.line([(65,230),(785,230)], fill=(230,230,230), width=2)
+        draw.line([(65,145),(785,145)], fill=(230,230,230), width=2)
 
-        # CHAPA
-        bold(100,270,"CHAPA:",AZUL_ESC,18)
-        normal(100,295,f"{dados['chapa']}",(15,35,70),18)
+        # CHAPA / COLABORADOR / TEL
+        bold(70,170,"CHAPA:",AZUL_ESC,16)
+        normal(70,195,f"{dados['chapa']}",(15,35,70),16)
 
-        # COLABORADOR
-        bold(245,270,"COLABORADOR:",AZUL_ESC,18)
-        normal(245,295,f"{dados['nome'][:22]}",(15,35,70),15)
+        bold(215,170,"COLABORADOR:",AZUL_ESC,16)
+        normal(215,195,f"{dados['nome'][:20]}",(15,35,70),14)
 
-        # TEL
-        bold(545,270,"TEL:",AZUL_ESC,18)
-        normal(545,295,f"{dados['telefone']}",(15,35,70),16)
+        bold(545,170,"TEL:",AZUL_ESC,16)
+        normal(545,195,f"{dados['telefone']}",(15,35,70),14)
 
-        # FUNCAO centralizado
-        bold(290,365,"FUNCAO:",AZUL_ESC,20)
-        normal(395,365,f"{dados['funcao'][:20]}",(15,35,70),18)
+        # FUNCAO
+        bold(290,255,"FUNCAO:",AZUL_ESC,18)
+        normal(385,257,f"{dados['funcao'][:18]}",(15,35,70),16)
 
         # Barra inferior azul claro
-        draw.rounded_rectangle([(50,435),(800,500)], radius=22, fill=(185,211,240))
-        # parte de baixo quadrada pra encaixar no card
-        draw.rectangle([(50,470),(800,500)], fill=(185,211,240))
-        draw.rounded_rectangle([(30,485),(50,500)], radius=0, fill=(185,211,240))
-        draw.rounded_rectangle([(800,485),(820,500)], radius=0, fill=(185,211,240))
+        draw.rounded_rectangle([(50,310),(800,455)], radius=22, fill=(185,211,240))
+        draw.rectangle([(50,380),(800,455)], fill=(185,211,240))
 
-        # SUPERVISOR
-        bold(95,448,"SUPERVISOR/LIDER:",AZUL_ESC,16)
-        normal(95,470,f"{dados['lider_imediato'][:18]}",(15,35,70),15)
+        bold(80,325,"SUPERVISOR/LIDER:",AZUL_ESC,15)
+        normal(80,350,f"{dados['lider_imediato'][:22]}",(15,35,70),14)
 
-        # Linha vertical
-        draw.line([(395,442),(395,492)], fill=(140,180,220), width=1)
+        draw.line([(395,320),(395,385)], fill=(140,180,220), width=1)
 
-        # COORDENADOR
-        bold(425,448,"COORDENADOR:",AZUL_ESC,16)
-        normal(425,470,f"{dados.get('coordenador','')[:20]}",(15,35,70),15)
+        bold(415,325,"COORDENADOR:",AZUL_ESC,15)
+        normal(415,350,f"{dados.get('coordenador','')[:22]}",(15,35,70),14)
+
+        # === DATA BEM PEQUENA NA ULTIMA LINHA ===
+        small(65,465,f"DATA: {data_hora}",(90,90,90),11)
+        small(600,465,f"ID: {nome_base[:16].upper()}",(90,90,90),10)
 
         img.save(caminho_png, quality=95, optimize=True)
         return caminho_txt, caminho_png, texto
     except Exception as e:
-        print(f"ERRO MASCARA FOTO: {e}")
+        print(f"ERRO MASCARA: {e}")
         return caminho_txt if 'caminho_txt' in locals() else "", caminho_png if 'caminho_png' in locals() else "", texto
 
 def apagar_tudo_da_chapa(chapa):
@@ -200,7 +185,7 @@ def apagar_tudo_da_chapa(chapa):
 
 app_flask = Flask(__name__)
 @app_flask.route('/')
-def home(): return "BOT ON - MASCARA FOTO ESTILO"
+def home(): return "BOT ON - MASCARA FOTO PATRIMONIO NA FRENTE"
 @app_flask.route('/fotos/<path:filename>')
 def foto(filename): return send_from_directory(PASTA_FOTOS, filename)
 @app_flask.route('/mascaras/<path:filename>')
@@ -235,9 +220,9 @@ def base():
     html = f"""<html><head><meta charset='utf-8'><title>BASE - MASCARA FOTO</title>
     <style>body{{font-family:Arial;padding:20px;background:#f5f6f8}}table{{width:100%;border-collapse:collapse;background:white}}th,td{{padding:8px;border:1px solid #ddd;text-align:center;font-size:12px}}th{{background:#0F4C8F;color:white}}
     .foto-padrao{{width:50px;height:50px;object-fit:cover;border-radius:4px;border:1px solid #ccc}}.mascara-preview{{width:160px;height:95px;object-fit:contain;border-radius:10px;border:2px solid #0F4C8F;cursor:pointer;background:white}}.mascara-preview:hover{{transform:scale(2.5);z-index:100;position:relative}} .btn-apagar{{background:#dc3545;color:white;padding:5px 8px;border-radius:4px;text-decoration:none}}</style></head><body>
-    <h2>BASE - MASCARA ESTILO FOTO - BEM MENOR</h2>
+    <h2>BASE - MASCARA FOTO - PATRIMONIO NA FRENTE</h2>
     <form method='GET'>CHAPA: <input name='chapa' value='{chapa_filtro}'><button>BUSCAR</button> <a href='/base'><button type='button'>LIMPAR</button></a> <a href='/apagar_chapa'><button type='button' style='background:orange;color:white'>APAGAR CHAPA</button></a></form><br>
-    <table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA FOTO</th><th>ACAO</th></tr>"""
+    <table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA</th><th>ACAO</th></tr>"""
     try:
         with open(ARQ_INV, encoding="utf-8") as f:
             reader = list(csv.DictReader(f))
@@ -323,7 +308,7 @@ async def otdr_f3_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def final_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "CANCELAR" in update.message.text.upper(): await update.message.reply_text("Cancelado /start"); return ConversationHandler.END
     try:
-        await update.message.reply_text("⏳ Gerando mascara estilo foto...")
+        await update.message.reply_text("⏳ Gerando mascara...")
         masc_txt, masc_png, texto_masc = gerar_mascara(context.user_data)
         data_reg = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
         with open(ARQ_INV, "a", newline="", encoding="utf-8") as f:
