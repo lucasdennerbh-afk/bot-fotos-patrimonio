@@ -1,12 +1,10 @@
-import os, threading, csv, datetime, re, uuid, zipfile, time, asyncio
+import os, threading, csv, datetime, re, uuid, zipfile, asyncio
 from flask import Flask, send_from_directory, send_file, request
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, ContextTypes
 from PIL import Image, ImageDraw, ImageFont
 
 TOKEN = os.environ.get("BOT_TOKEN")
-print(f">>> TOKEN EXISTE? {bool(TOKEN)}")
-
 ARQ_FUNC = "funcionarios.csv"
 ARQ_CAD = "cadastros_fotos.csv"
 ARQ_INV = "inventario_fotos.csv"
@@ -17,8 +15,7 @@ os.makedirs(PASTA_MASCARAS, exist_ok=True)
 
 for arq, header in [(ARQ_CAD, ["chapa","nome","funcao","lider_imediato","coordenador","telefone","id_telegram"]),(ARQ_INV, ["data_registro","chapa","nome","funcao","lider_imediato","coordenador","telefone","tipo_item","patrimonio_maquina","patrimonio_otdr","foto_maquina1","foto_maquina2","foto_maquina3","foto_otdr1","foto_otdr2","foto_otdr3","mascara_arquivo"])]:
     if not os.path.exists(arq):
-        with open(arq, "w", newline="", encoding="utf-8") as f:
-            csv.writer(f).writerow(header)
+        with open(arq, "w", newline="", encoding="utf-8") as f: csv.writer(f).writerow(header)
 
 CHAPA, TELEFONE, MAQ_PAT, MAQ_F1, MAQ_F2, MAQ_F3, OTDR_PAT, OTDR_F1, OTDR_F2, OTDR_F3, FINAL = range(11)
 
@@ -95,13 +92,66 @@ def gerar_mascara(dados):
     img.save(caminho_png)
     return caminho_txt, caminho_png, texto
 
+def apagar_tudo_da_chapa(chapa):
+    chapa = str(chapa).strip().zfill(6)
+    res = {'inventario':0,'fotos':0,'cadastro':0}
+    try:
+        novas_linhas=[]
+        with open(ARQ_INV, encoding="utf-8") as f:
+            reader=list(csv.DictReader(f))
+            for r in reader:
+                if str(r.get('chapa','')).zfill(6)==chapa:
+                    res['inventario']+=1
+                    for k in ["foto_maquina1","foto_maquina2","foto_maquina3","foto_otdr1","foto_otdr2","foto_otdr3","mascara_arquivo"]:
+                        caminho = r.get(k,'')
+                        if caminho and os.path.exists(caminho):
+                            try: os.remove(caminho); res['fotos']+=1
+                            except: pass
+                else:
+                    novas_linhas.append(r)
+        with open(ARQ_INV, "w", newline="", encoding="utf-8") as f:
+            w=csv.DictWriter(f, fieldnames=["data_registro","chapa","nome","funcao","lider_imediato","coordenador","telefone","tipo_item","patrimonio_maquina","patrimonio_otdr","foto_maquina1","foto_maquina2","foto_maquina3","foto_otdr1","foto_otdr2","foto_otdr3","mascara_arquivo"])
+            w.writeheader(); w.writerows(novas_linhas)
+    except Exception as e: print(f"Erro apagar inv: {e}")
+    try:
+        novas=[]
+        with open(ARQ_CAD, encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                if str(r.get('chapa','')).zfill(6)!=chapa: novas.append(r)
+                else: res['cadastro']=1
+        with open(ARQ_CAD, "w", newline="", encoding="utf-8") as f:
+            w=csv.DictWriter(f, fieldnames=["chapa","nome","funcao","lider_imediato","coordenador","telefone","id_telegram"])
+            w.writeheader(); w.writerows(novas)
+    except Exception as e: print(f"Erro apagar cad: {e}")
+    return res
+
 app_flask = Flask(__name__)
 @app_flask.route('/')
-def home(): return "BOT FOTOS ON - MASCARA + FILTRO + ATUALIZAR BASE"
+def home(): return "BOT FOTOS ON - MASCARA + FILTRO + APAGAR + ATUALIZAR"
 @app_flask.route('/fotos/<path:filename>')
 def foto(filename): return send_from_directory(PASTA_FOTOS, filename)
 @app_flask.route('/mascaras/<path:filename>')
 def masc(filename): return send_from_directory(PASTA_MASCARAS, filename)
+
+@app_flask.route('/apagar/<chapa>')
+def apagar_chapa_url(chapa):
+    chapa = chapa.strip().zfill(6)
+    apagados = apagar_tudo_da_chapa(chapa)
+    return f"<html><head><meta charset='utf-8'></head><body style='font-family:Arial;padding:30px'><h2>🗑️ Chapa {chapa} apagada!</h2><p>Registros: {apagados['inventario']} | Fotos: {apagados['fotos']} | Cadastro: {apagados['cadastro']}</p><p>Agora pode cadastrar do ZERO.</p><br><a href=/base><button>Voltar pra Base</button></a></body></html>"
+
+@app_flask.route('/apagar_chapa', methods=['GET','POST'])
+def apagar_chapa_page():
+    if request.method == 'POST':
+        chapa = request.form.get('chapa','').strip().zfill(6)
+        apagados = apagar_tudo_da_chapa(chapa)
+        return f"<h2>✅ Chapa {chapa} apagada - {apagados['inventario']} registros</h2><a href=/base>Voltar</a>"
+    return """
+    <html><head><meta charset='utf-8'><title>Apagar Chapa</title>
+    <style>body{font-family:Arial;padding:30px;background:#f5f5f5} .box{background:white;padding:30px;border-radius:10px;max-width:500px}
+    button{padding:12px 20px;background:#dc3545;color:white;border:none;border-radius:5px;cursor:pointer} input{padding:10px;width:200px}</style>
+    </head><body><div class='box'><h2>🗑️ Apagar Chapa</h2><p>Digite a chapa que quer apagar TUDO:</p>
+    <form method='POST'>Chapa: <input name='chapa' placeholder='001234' required><button type='submit'>APAGAR TUDO</button></form><br><a href=/base>← Voltar</a></div></body></html>
+    """
 
 @app_flask.route('/atualizar_base', methods=['GET','POST'])
 def atualizar_base():
@@ -122,12 +172,8 @@ def atualizar_base():
     return f"""
     <html><head><meta charset='utf-8'><title>Atualizar Funcionarios</title>
     <style>body{{font-family:Arial;padding:30px;background:#f5f5f5}} .box{{background:white;padding:30px;border-radius:10px;max-width:600px}} button{{padding:12px 25px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer}} .info{{background:#e7f3ff;padding:15px;border-radius:5px;margin:15px 0}}</style>
-    </head><body><div class='box'>
-    <h2>📋 Atualizar Base de Funcionários</h2>
-    <div class='info'><b>Base atual:</b> {total_atual} funcionários<br><b>Arquivo:</b> {ARQ_FUNC}</div>
-    <p>Selecione CSV com: CHAPA, NOME, FUNCAO, LIDER, COORDENADOR (separado por ; ou ,)</p>
-    <form method='POST' enctype='multipart/form-data'><input type='file' name='arquivo' accept='.csv' required><br><br><button type='submit'>📤 ATUALIZAR BASE</button></form><br><a href=/base>← Voltar para Base Fotos</a>
-    <hr><h4>Exemplo CSV:</h4><pre style='background:#f0f0f0;padding:10px'>CHAPA;NOME;FUNCAO;LIDER;COORDENADOR\n001234;JOAO SILVA;TECNICO;CARLOS;MARIA</pre></div></body></html>
+    </head><body><div class='box'><h2>📋 Atualizar Base</h2><div class='info'><b>Base atual:</b> {total_atual} funcionários</div>
+    <form method='POST' enctype='multipart/form-data'><input type='file' name='arquivo' accept='.csv' required><br><br><button type='submit'>📤 ATUALIZAR BASE</button></form><br><a href=/base>← Voltar</a></div></body></html>
     """
 
 @app_flask.route('/base')
@@ -138,23 +184,22 @@ def base():
     filtro_ativo = chapa_filtro or nome_filtro or pat_filtro
     html = f"""
     <html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>BASE FOTOS</title>
-    <style>body{{font-family:Arial;padding:20px;background:#f5f5f5}} .filtro{{background:white;padding:20px;border-radius:10px;box-shadow:0 2px 5px #0001;margin-bottom:20px}}
-    input{{padding:10px;margin:5px;border:1px solid #ccc;border-radius:5px;width:160px}} button{{padding:10px 18px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer;margin:2px}} table{{background:white;width:100%;border-collapse:collapse;font-size:12px}} th,td{{padding:8px;text-align:left;border:1px solid #ddd}} th{{background:#007bff;color:white}} .total{{margin:15px 0;font-weight:bold;background:white;padding:10px;border-radius:5px}}</style></head><body>
-    <h2>📸 BASE FOTOS - FILTRO POR CHAPA</h2>
+    <style>body{{font-family:Arial;padding:20px;background:#f5f5f5}} .filtro{{background:white;padding:20px;border-radius:10px;margin-bottom:20px}}
+    input{{padding:10px;margin:5px;border:1px solid #ccc;border-radius:5px;width:140px}} button{{padding:10px 18px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer;margin:2px}} table{{background:white;width:100%;border-collapse:collapse;font-size:12px}} th,td{{padding:8px;border:1px solid #ddd}} th{{background:#007bff;color:white}} .total{{margin:15px 0;font-weight:bold;background:white;padding:10px;border-radius:5px}}</style></head><body>
+    <h2>📸 BASE FOTOS</h2>
     <div class='filtro'>
         <form method='GET' action='/base'>
-            <b>FILTRAR:</b><br>
-            CHAPA: <input type='text' name='chapa' placeholder='Ex: 001234' value='{chapa_filtro}'>
+            CHAPA: <input type='text' name='chapa' placeholder='001234' value='{chapa_filtro}'>
             NOME: <input type='text' name='nome' placeholder='JOAO' value='{nome_filtro}'>
-            PATRIMONIO: <input type='text' name='patrimonio' placeholder='MAQ ou OTDR' value='{pat_filtro}'>
+            PAT: <input type='text' name='patrimonio' placeholder='MAQ' value='{pat_filtro}'>
             <button type='submit'>🔍 BUSCAR</button>
             <a href='/base'><button type='button'>❌ LIMPAR</button></a>
         </form>
-        <div style='margin-top:10px'><a href='/exportar'>📥 CSV</a> | <a href='/exportar_rar'>📦 ZIP</a> | <a href='/atualizar_base' style='background:#ffc107;padding:8px 12px;border-radius:5px;color:black;text-decoration:none;font-weight:bold'>🔄 ATUALIZAR FUNCIONARIOS</a></div>
+        <div style='margin-top:10px'><a href='/exportar'>📥 CSV</a> | <a href='/exportar_rar'>📦 ZIP</a> | <a href='/atualizar_base' style='background:#ffc107;padding:8px 12px;border-radius:5px;color:black;text-decoration:none;font-weight:bold'>🔄 ATUALIZAR FUNC</a> | <a href='/apagar_chapa' style='background:#dc3545;padding:8px 12px;border-radius:5px;color:white;text-decoration:none;font-weight:bold'>🗑️ APAGAR CHAPA</a></div>
     </div>
     """
-    if filtro_ativo: html += f"<div class='total'>🔎 Filtro: CHAPA={chapa_filtro} NOME={nome_filtro} PAT={pat_filtro} | <a href='/base'>Ver todos</a></div>"
-    html+="<table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>TEL</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA</th></tr>"
+    if filtro_ativo: html += f"<div class='total'>🔎 Filtro ativo | <a href='/base'>Ver todos</a></div>"
+    html+="<table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>TEL</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA</th><th>AÇÃO</th></tr>"
     count=0; count_filtrado=0
     try:
         with open(ARQ_INV, encoding="utf-8") as f:
@@ -164,11 +209,12 @@ def base():
                 if nome_filtro and nome_filtro not in r.get('nome','').upper(): continue
                 if pat_filtro and pat_filtro not in r.get('patrimonio_maquina','').upper() and pat_filtro not in r.get('patrimonio_otdr','').upper(): continue
                 count_filtrado+=1
-                f_maq = "".join([f"<a href=/{r.get(k,'')} target=_blank><img src=/{r.get(k,'')} width=50></a>" for k in ["foto_maquina1","foto_maquina2","foto_maquina3"] if r.get(k)])
-                f_otdr = "".join([f"<a href=/{r.get(k,'')} target=_blank><img src=/{r.get(k,'')} width=50></a>" for k in ["foto_otdr1","foto_otdr2","foto_otdr3"] if r.get(k)])
-                masc_link = r.get('mascara_arquivo',''); masc = f"<a href=/{masc_link} target=_blank><img src=/{masc_link} width=100><br>VER</a>" if masc_link else ""
-                html+=f"<tr><td>{r.get('data_registro')}</td><td><b>{r.get('chapa')}</b></td><td>{r.get('nome')}<br><small>{r.get('funcao')}</small></td><td>{r.get('telefone')}</td><td><b>{r.get('patrimonio_maquina')}</b></td><td><b>{r.get('patrimonio_otdr')}</b></td><td>{f_maq}</td><td>{f_otdr}</td><td>{masc}</td></tr>"
-    except Exception as e: html+=f"<tr><td colspan=9>Erro: {e}</td></tr>"
+                f_maq = "".join([f"<a href=/{r.get(k,'')} target=_blank><img src=/{r.get(k,'')} width=40></a>" for k in ["foto_maquina1","foto_maquina2","foto_maquina3"] if r.get(k)])
+                f_otdr = "".join([f"<a href=/{r.get(k,'')} target=_blank><img src=/{r.get(k,'')} width=40></a>" for k in ["foto_otdr1","foto_otdr2","foto_otdr3"] if r.get(k)])
+                masc_link = r.get('mascara_arquivo',''); masc = f"<a href=/{masc_link} target=_blank><img src=/{masc_link} width=80><br>VER</a>" if masc_link else ""
+                ch = r.get('chapa','')
+                html+=f"<tr><td>{r.get('data_registro')}</td><td><b>{ch}</b></td><td>{r.get('nome')}<br><small>{r.get('funcao')}</small></td><td>{r.get('telefone')}</td><td><b>{r.get('patrimonio_maquina')}</b></td><td><b>{r.get('patrimonio_otdr')}</b></td><td>{f_maq}</td><td>{f_otdr}</td><td>{masc}</td><td><a href='/apagar/{ch}' onclick=\"return confirm('APAGAR TUDO da chapa {ch}? Ela vai ter que cadastrar do zero!')\" style='background:#dc3545;color:white;padding:6px 10px;border-radius:4px;text-decoration:none;font-size:11px'>🗑️ APAGAR</a></td></tr>"
+    except Exception as e: html+=f"<tr><td colspan=10>Erro: {e}</td></tr>"
     html+=f"</table><div class='total'>{'Encontrados: '+str(count_filtrado)+' de '+str(count) if filtro_ativo else 'Total: '+str(count)+' kits'}</div></body></html>"
     return html
 
@@ -267,11 +313,10 @@ def main():
     threading.Thread(target=run_flask, daemon=True).start()
     try: asyncio.set_event_loop(asyncio.new_event_loop())
     except: pass
-    print(f">>> TOKEN EXISTE? {bool(TOKEN)}")
     application = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(entry_points=[CommandHandler("start", start)], states={CHAPA: [MessageHandler(filters.TEXT & ~filters.COMMAND, chapa_step)], TELEFONE: [MessageHandler(filters.ALL, telefone_step)], MAQ_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, maq_pat_step)], MAQ_F1: [MessageHandler(filters.PHOTO, maq_f1_step)], MAQ_F2: [MessageHandler(filters.PHOTO, maq_f2_step)], MAQ_F3: [MessageHandler(filters.PHOTO, maq_f3_step)], OTDR_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, otdr_pat_step)], OTDR_F1: [MessageHandler(filters.PHOTO, otdr_f1_step)], OTDR_F2: [MessageHandler(filters.PHOTO, otdr_f2_step)], OTDR_F3: [MessageHandler(filters.PHOTO, otdr_f3_step)], FINAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, final_step)]}, fallbacks=[CommandHandler("cancel", cancel)])
     application.add_handler(conv)
-    print(">>> BOT FOTOS ON - COMPLETO")
+    print(">>> BOT FOTOS ON - COMPLETO COM APAGAR")
     application.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__": main()
