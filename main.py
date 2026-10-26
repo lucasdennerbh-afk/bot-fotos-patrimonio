@@ -1,7 +1,7 @@
-import os, threading, csv, datetime, re, uuid, zipfile
-from flask import Flask, request, send_file, send_from_directory
+import os, threading, csv, datetime, re, uuid, zipfile, time
+from flask import Flask, send_from_directory, send_file
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ConversationHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, ContextTypes
 
 TOKEN = os.environ.get("BOT_TOKEN")
 print(f">>> TOKEN EXISTE? {bool(TOKEN)} - Tamanho: {len(TOKEN) if TOKEN else 0}")
@@ -105,20 +105,20 @@ def exprar():
 def run_flask():
     app_flask.run(host='0.0.0.0', port=int(os.environ.get("PORT",10000)))
 
-async def start(update, context):
-    await update.message.reply_text("📸 Sistema Fotos Patrimônio\nEnvie sua CHAPA:")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("📸 Sistema Fotos Patrimonio\nEnvie sua CHAPA:")
     return CHAPA
 
-async def chapa_step(update, context):
+async def chapa_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chapa=update.message.text.strip().zfill(6)
     dados=buscar_na_base_mestra(chapa)
     if not dados:
-        await update.message.reply_text(f"Chapa {chapa} não existe")
+        await update.message.reply_text(f"Chapa {chapa} nao existe")
         return CHAPA
     cad=buscar_cadastro(chapa)
     if cad and cad.get("telefone"):
         context.user_data.update(cad)
-        kb=[[KeyboardButton("🔧 Maquina de Fusão"), KeyboardButton("📡 OTDR")]]
+        kb=[[KeyboardButton("🔧 Maquina de Fusao"), KeyboardButton("📡 OTDR")]]
         await update.message.reply_text(f"Bem vindo {cad['nome']}! Escolha:", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True))
         return MENU
     context.user_data["chapa"]=chapa
@@ -127,33 +127,33 @@ async def chapa_step(update, context):
     await update.message.reply_text(f"CHAPA OK: {dados['nome']}\nCompartilhe telefone:", reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True, resize_keyboard=True))
     return TELEFONE
 
-async def telefone_step(update, context):
+async def telefone_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tel_raw=update.message.contact.phone_number if update.message.contact else update.message.text
     tel=formatar_telefone(tel_raw)
     m=context.user_data["dados_mestra"]
     dados={"chapa": context.user_data["chapa"], "nome": m["nome"], "funcao": m["funcao"], "lider_imediato": m["lider"], "coordenador": m["coord"], "telefone": tel, "id_telegram": str(update.effective_user.id)}
     salvar_cadastro(dados)
     context.user_data.update(dados)
-    kb=[[KeyboardButton("🔧 Maquina de Fusão"), KeyboardButton("📡 OTDR")]]
+    kb=[[KeyboardButton("🔧 Maquina de Fusao"), KeyboardButton("📡 OTDR")]]
     await update.message.reply_text(f"Tel {tel} salvo! Escolha:", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True))
     return MENU
 
-async def menu_step(update, context):
+async def menu_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     t=update.message.text.upper()
     context.user_data["tipo_item"]="MAQUINA DE FUSAO" if "FUS" in t else "OTDR"
-    await update.message.reply_text(f"Escolheu {context.user_data['tipo_item']}\nDigite o PATRIMÔNIO:")
+    await update.message.reply_text(f"Escolheu {context.user_data['tipo_item']}\nDigite o PATRIMONIO:")
     return PATRIMONIO
 
-async def patrimonio_step(update, context):
+async def patrimonio_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pat=update.message.text.strip().upper()
     if patrimonio_existe(pat):
-        await update.message.reply_text(f"Pat {pat} já existe! Digite outro:")
+        await update.message.reply_text(f"Pat {pat} ja existe! Digite outro:")
         return PATRIMONIO
     context.user_data["patrimonio"]=pat
     await update.message.reply_text(f"Pat {pat} OK! Envie FOTO 1:")
     return FOTO1
 
-async def baixar(update, context):
+async def baixar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ph=update.message.photo[-1]
     file=await context.bot.get_file(ph.file_id)
     nome=f"{context.user_data['patrimonio']}_{uuid.uuid4().hex[:6]}.jpg"
@@ -161,7 +161,7 @@ async def baixar(update, context):
     await file.download_to_drive(caminho)
     return caminho
 
-async def foto1_step(update, context):
+async def foto1_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.photo:
         await update.message.reply_text("Envie FOTO!")
         return FOTO1
@@ -169,7 +169,7 @@ async def foto1_step(update, context):
     await update.message.reply_text("Foto1 OK! Envie FOTO 2:")
     return FOTO2
 
-async def foto2_step(update, context):
+async def foto2_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.photo:
         await update.message.reply_text("Envie FOTO!")
         return FOTO2
@@ -177,44 +177,45 @@ async def foto2_step(update, context):
     await update.message.reply_text("Foto2 OK! Envie FOTO 3:")
     return FOTO3
 
-async def foto3_step(update, context):
+async def foto3_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.photo:
         await update.message.reply_text("Envie FOTO!")
         return FOTO3
     context.user_data["foto3"]=await baixar(update, context)
     with open(ARQ_INV, "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([datetime.datetime.now().strftime("%d/%m/%Y %H:%M"), context.user_data["chapa"], context.user_data["nome"], context.user_data["funcao"], context.user_data["lider_imediato"], context.user_data["coordenador"], context.user_data["telefone"], context.user_data["tipo_item"], context.user_data["patrimonio"], context.user_data["foto1"], context.user_data["foto2"], context.user_data["foto3"]])
-    kb=[[KeyboardButton("🔧 Maquina de Fusão"), KeyboardButton("📡 OTDR")]]
+    kb=[[KeyboardButton("🔧 Maquina de Fusao"), KeyboardButton("📡 OTDR")]]
     await update.message.reply_text(f"✅ SALVO {context.user_data['patrimonio']}!", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True))
     return MENU
 
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Cancelado. /start")
+    return ConversationHandler.END
+
 def main():
-    print(">>> INICIANDO THREAD FLASK")
     threading.Thread(target=run_flask, daemon=True).start()
-    print(">>> CRIANDO BOT...")
+    print(">>> INICIANDO BOT...")
     if not TOKEN:
-        print(">>> ERRO SEM TOKEN")
-        return
-    try:
-        app = ApplicationBuilder().token(TOKEN).build()
-        conv = ConversationHandler(
-            entry_points=[CommandHandler("start", start)],
-            states={
-                CHAPA: [MessageHandler(filters.TEXT & ~filters.COMMAND, chapa_step)],
-                TELEFONE: [MessageHandler(filters.ALL, telefone_step)],
-                MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, menu_step)],
-                PATRIMONIO: [MessageHandler(filters.TEXT & ~filters.COMMAND, patrimonio_step)],
-                FOTO1: [MessageHandler(filters.PHOTO, foto1_step)],
-                FOTO2: [MessageHandler(filters.PHOTO, foto2_step)],
-                FOTO3: [MessageHandler(filters.PHOTO, foto3_step)],
-            },
-            fallbacks=[]
-        )
-        app.add_handler(conv)
-        print(">>> BOT FOTOS ON - PRONTO PRA RECEBER /start")
-        app.run_polling(drop_pending_updates=True)
-    except Exception as e:
-        print(f">>> CRASH BOT: {e}")
+        print(">>> SEM TOKEN")
+        while True: time.sleep(10)
+    print(f">>> TOKEN OK TAM {len(TOKEN)} - CRIANDO APP")
+    application = Application.builder().token(TOKEN).build()
+    conv = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            CHAPA: [MessageHandler(filters.TEXT & ~filters.COMMAND, chapa_step)],
+            TELEFONE: [MessageHandler(filters.ALL, telefone_step)],
+            MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, menu_step)],
+            PATRIMONIO: [MessageHandler(filters.TEXT & ~filters.COMMAND, patrimonio_step)],
+            FOTO1: [MessageHandler(filters.PHOTO, foto1_step)],
+            FOTO2: [MessageHandler(filters.PHOTO, foto2_step)],
+            FOTO3: [MessageHandler(filters.PHOTO, foto3_step)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    application.add_handler(conv)
+    print(">>> BOT FOTOS ON - PRONTO PRA RECEBER /start")
+    application.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 if __name__=="__main__":
     main()
