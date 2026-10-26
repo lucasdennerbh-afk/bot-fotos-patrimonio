@@ -72,7 +72,16 @@ def patrimonio_existe(p):
     except: pass
     return False
 
-# ===== MASCARA NOVA COLORIDA MODERNA =====
+def chapa_ja_cadastrou(chapa):
+    try:
+        chapa_6 = str(chapa).strip().zfill(6)
+        with open(ARQ_INV, encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                if str(r.get('chapa','')).zfill(6) == chapa_6:
+                    return True, r
+    except: pass
+    return False, None
+
 def gerar_mascara(dados):
     data_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     texto = f"""MASCARA - PATRIMONIO - {data_str}
@@ -87,7 +96,6 @@ SUPERVISOR: {dados['lider_imediato']} | COORD: {dados.get('coordenador','')}
         caminho_txt = os.path.join(PASTA_MASCARAS, f"{nome_base}.txt")
         caminho_png = os.path.join(PASTA_MASCARAS, f"{nome_base}.png")
         with open(caminho_txt, "w", encoding="utf-8") as f: f.write(texto)
-        
         W, H = 1200, 700
         img = Image.new('RGB', (W, H), color=(245,247,250))
         draw = ImageDraw.Draw(img)
@@ -95,53 +103,40 @@ SUPERVISOR: {dados['lider_imediato']} | COORD: {dados.get('coordenador','')}
         def text_bold(x,y,txt,color):
             draw.text((x,y),txt,fill=color,font=font)
             draw.text((x+1,y),txt,fill=color,font=font)
-
-        # HEADER
         draw.rounded_rectangle([(0,0),(W,90)], radius=0, fill=(11,42,74))
         text_bold(30,15,"MASCARA DE PATRIMONIO",(255,255,255))
         draw.text((30,45),f"Gerado em {data_str} | Sistema Fotos Patrimonio",fill=(180,200,220),font=font)
-        draw.rounded_rectangle([(W-220,15),(W-20,75)], radius=12, fill=(255,255,255), outline=(255,255,255))
+        draw.rounded_rectangle([(W-220,15),(W-20,75)], radius=12, fill=(255,255,255))
         draw.text((W-200,35),"KIT FUSAO+OTDR",fill=(11,42,74),font=font)
-
-        # CARD MAQUINA VERDE
         draw.rounded_rectangle([(20,110),(580,280)], radius=18, fill=(255,255,255), outline=(46,125,50), width=3)
         draw.rounded_rectangle([(20,110),(580,150)], radius=18, fill=(232,245,233))
         draw.rectangle([(20,135),(580,152)], fill=(232,245,233))
         draw.text((35,118),"MAQUINA DE FUSAO",fill=(46,125,50),font=font)
         text_bold(35,170,f"{dados['pat_maquina']}",(20,60,20))
         draw.text((35,210),"Patrimonio identificado",fill=(100,140,100),font=font)
-
-        # CARD OTDR LARANJA
         draw.rounded_rectangle([(620,110),(1180,280)], radius=18, fill=(255,255,255), outline=(239,108,0), width=3)
         draw.rounded_rectangle([(620,110),(1180,150)], radius=18, fill=(255,243,224))
         draw.rectangle([(620,135),(1180,152)], fill=(255,243,224))
         draw.text((635,118),"OTDR - REFLETOMETRO",fill=(239,108,0),font=font)
         text_bold(635,170,f"{dados['pat_otdr']}",(80,40,0))
         draw.text((635,210),"Patrimonio identificado",fill=(180,130,80),font=font)
-
-        # INFO PRINCIPAL
         draw.rounded_rectangle([(20,300),(1180,620)], radius=18, fill=(255,255,255), outline=(220,225,230), width=2)
         draw.rounded_rectangle([(35,315),(200,355)], radius=20, fill=(255,243,205), outline=(255,193,7), width=2)
         draw.text((50,325),f"CHAPA: {dados['chapa']}",fill=(120,80,0),font=font)
         text_bold(220,320,f"{dados['nome'][:45]}",(15,30,60))
         draw.text((220,345),f"TEL: {dados['telefone']} | FUNCAO: {dados['funcao']}",fill=(80,90,110),font=font)
-        
         draw.rounded_rectangle([(35,380),(570,450)], radius=12, fill=(227,242,253), outline=(144,202,249))
         draw.text((45,388),"SUPERVISOR / LIDER",fill=(13,71,161),font=font)
         text_bold(45,410,f"{dados['lider_imediato'][:35]}",(10,30,70))
-        
         draw.rounded_rectangle([(590,380),(1165,450)], radius=12, fill=(243,229,245), outline=(206,147,216))
         draw.text((600,388),"COORDENADOR",fill=(74,20,140),font=font)
         text_bold(600,410,f"{dados.get('coordenador','')[:35]}",(50,20,80))
-        
         draw.line([(35,475),(1165,475)], fill=(230,230,230), width=2)
-        draw.text((35,490),f"CHAPA: {dados['chapa']} | COLABORADOR CADASTRADO NO SISTEMA DE FOTOS",fill=(100,100,100),font=font)
-        draw.text((35,515),f"Este documento comprova posse do KIT: {dados['pat_maquina']} + {dados['pat_otdr']}",fill=(100,100,100),font=font)
-
+        draw.text((35,490),f"CHAPA: {dados['chapa']} | COLABORADOR CADASTRADO",fill=(100,100,100),font=font)
+        draw.text((35,515),f"Comprova posse do KIT: {dados['pat_maquina']} + {dados['pat_otdr']}",fill=(100,100,100),font=font)
         draw.rounded_rectangle([(0,640),(W,H)], radius=0, fill=(11,42,74))
-        draw.text((30,660),f"Documento gerado automaticamente | {data_str}",fill=(180,200,220),font=font)
+        draw.text((30,660),f"Documento automatico | {data_str}",fill=(180,200,220),font=font)
         draw.text((W-250,660),f"ID: {nome_base[:12].upper()}",fill=(255,255,255),font=font)
-
         img.save(caminho_png, quality=95)
         return caminho_txt, caminho_png, texto
     except Exception as e:
@@ -168,7 +163,7 @@ def apagar_tudo_da_chapa(chapa):
 
 app_flask = Flask(__name__)
 @app_flask.route('/')
-def home(): return "BOT ON - MASCARA COLORIDA"
+def home(): return "BOT ON - TRAVA 1 CHAPA + MASCARA COLORIDA"
 @app_flask.route('/fotos/<path:filename>')
 def foto(filename): return send_from_directory(PASTA_FOTOS, filename)
 @app_flask.route('/mascaras/<path:filename>')
@@ -208,7 +203,7 @@ def apagar_chapa_page():
     if request.method == 'POST':
         chapa = request.form.get('chapa','').strip()
         if chapa: apagar_tudo_da_chapa(chapa)
-        return f"<h2>Chapa {chapa} apagada!</h2><a href=/base>Voltar</a>"
+        return f"<h2>Chapa {chapa} apagada! Agora pode cadastrar de novo.</h2><a href=/base>Voltar</a>"
     return """<html><head><meta charset='utf-8'></head><body><h2>APAGAR POR CHAPA</h2><form method='POST'>CHAPA: <input name='chapa' required><button>APAGAR TUDO</button></form><br><a href=/base>Voltar</a></body></html>"""
 @app_flask.route('/base')
 def base():
@@ -227,7 +222,7 @@ def base():
     .btn-apagar{{background:#dc3545;color:white;padding:6px 10px;border-radius:5px;text-decoration:none;font-weight:bold}}
     input{{padding:6px}} button{{padding:6px 12px; cursor:pointer}}
     </style></head><body>
-    <h2>BASE FOTOS - ESTILOSA - MASCARA COLORIDA</h2>
+    <h2>BASE FOTOS - ESTILOSA - TRAVA 1 POR CHAPA</h2>
     <form method='GET' style='margin-bottom:15px'>
         CHAPA: <input name='chapa' value='{chapa_filtro}' placeholder='Digite a chapa'>
         <button type='submit'>BUSCAR</button>
@@ -259,10 +254,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("📸 Sistema Fotos Patrimonio\nEnvie sua CHAPA:")
     return CHAPA
+
 async def chapa_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chapa=update.message.text.strip().zfill(6)
     dados=buscar_na_base_mestra(chapa)
-    if not dados: await update.message.reply_text(f"❌ Chapa {chapa} nao existe"); return CHAPA
+    if not dados: 
+        await update.message.reply_text(f"❌ Chapa {chapa} nao existe na base")
+        return CHAPA
+    
+    # TRAVA 1 CADASTRO POR CHAPA
+    ja_cad, registro = chapa_ja_cadastrou(chapa)
+    if ja_cad:
+        await update.message.reply_text(
+            f"⛔ CHAPA {chapa} JA FEZ CADASTRO!\n\n"
+            f"MAQUINA: {registro.get('patrimonio_maquina','')}\n"
+            f"OTDR: {registro.get('patrimonio_otdr','')}\n"
+            f"DATA: {registro.get('data_registro','')}\n\n"
+            f"Para cadastrar novamente:\n"
+            f"1 - Acesse /base\n"
+            f"2 - Busque CHAPA {chapa}\n"
+            f"3 - Clique APAGAR\n"
+            f"4 - Digite /start"
+        )
+        return ConversationHandler.END
+
     cad=buscar_cadastro(chapa)
     if cad and cad.get("telefone"):
         context.user_data.update(cad)
@@ -272,6 +287,7 @@ async def chapa_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb=[[KeyboardButton("📱 Compartilhar telefone", request_contact=True)]]
     await update.message.reply_text(f"CHAPA OK: {dados['nome']}\nCompartilhe telefone:", reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True, resize_keyboard=True))
     return TELEFONE
+
 async def telefone_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tel_raw=update.message.contact.phone_number if update.message.contact else update.message.text
     tel=formatar_telefone(tel_raw)
@@ -347,7 +363,7 @@ def main():
     application = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(entry_points=[CommandHandler("start", start)], states={CHAPA: [MessageHandler(filters.TEXT & ~filters.COMMAND, chapa_step)], TELEFONE: [MessageHandler(filters.ALL, telefone_step)], MAQ_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, maq_pat_step)], MAQ_F1: [MessageHandler(filters.PHOTO, maq_f1_step)], MAQ_F2: [MessageHandler(filters.PHOTO, maq_f2_step)], MAQ_F3: [MessageHandler(filters.PHOTO, maq_f3_step)], OTDR_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, otdr_pat_step)], OTDR_F1: [MessageHandler(filters.PHOTO, otdr_f1_step)], OTDR_F2: [MessageHandler(filters.PHOTO, otdr_f2_step)], OTDR_F3: [MessageHandler(filters.PHOTO, otdr_f3_step)], FINAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, final_step)]}, fallbacks=[CommandHandler("cancel", cancel)])
     application.add_handler(conv)
-    print(">>> BOT ON - MASCARA COLORIDA + BASE + ZIP")
+    print(">>> BOT ON - TRAVA 1 CHAPA + MASCARA COLORIDA")
     application.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__": main()
