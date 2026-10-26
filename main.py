@@ -1,4 +1,4 @@
-import os, threading, csv, datetime, re, uuid, zipfile, time
+import os, threading, csv, datetime, re, uuid, zipfile, time, asyncio
 from flask import Flask, send_from_directory, send_file
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, ContextTypes
@@ -199,6 +199,12 @@ def main():
         print(">>> SEM TOKEN")
         while True: time.sleep(10)
     print(f">>> TOKEN OK TAM {len(TOKEN)} - CRIANDO APP")
+    
+    # FIX PARA PYTHON 3.14
+    try:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+    except: pass
+
     application = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -215,7 +221,7 @@ def main():
     )
     application.add_handler(conv)
     print(">>> BOT FOTOS ON - PRONTO PRA RECEBER /start")
-    application.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+    application.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__":
     main()
