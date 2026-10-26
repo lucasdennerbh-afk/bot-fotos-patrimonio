@@ -72,15 +72,14 @@ def patrimonio_existe(p):
     except: pass
     return False
 
+# ===== MASCARA NOVA COLORIDA MODERNA =====
 def gerar_mascara(dados):
     data_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    texto = f"""MASCARA - PATRIMONIO
-MAQUINA FUSAO: {dados['pat_maquina']}
-OTDR: {dados['pat_otdr']}
-DATA: {data_str}
+    texto = f"""MASCARA - PATRIMONIO - {data_str}
+MAQUINA FUSAO: {dados['pat_maquina']} | OTDR: {dados['pat_otdr']}
 CHAPA: {dados['chapa']} | COLABORADOR: {dados['nome']} | TEL: {dados['telefone']}
 FUNCAO: {dados['funcao']}
-SUPERVISOR/LIDER: {dados['lider_imediato']} | COORD: {dados.get('coordenador','')}
+SUPERVISOR: {dados['lider_imediato']} | COORD: {dados.get('coordenador','')}
 """
     try:
         os.makedirs(PASTA_MASCARAS, exist_ok=True)
@@ -88,17 +87,62 @@ SUPERVISOR/LIDER: {dados['lider_imediato']} | COORD: {dados.get('coordenador',''
         caminho_txt = os.path.join(PASTA_MASCARAS, f"{nome_base}.txt")
         caminho_png = os.path.join(PASTA_MASCARAS, f"{nome_base}.png")
         with open(caminho_txt, "w", encoding="utf-8") as f: f.write(texto)
-        W, H = 1050, 350
-        img = Image.new('RGB', (W, H), color='white')
+        
+        W, H = 1200, 700
+        img = Image.new('RGB', (W, H), color=(245,247,250))
         draw = ImageDraw.Draw(img)
         font = ImageFont.load_default()
-        draw.rectangle([(0,0,W,50)], fill=(15,48,87))
-        draw.text((20,12), f"MASCARA - PATRIMONIO | {data_str}", fill="white", font=font)
-        draw.text((20,70), f"MAQUINA: {dados['pat_maquina']}  |  OTDR: {dados['pat_otdr']}", fill="black", font=font)
-        draw.text((20,110), f"CHAPA: {dados['chapa']} | COLAB: {dados['nome'][:35]} | TEL: {dados['telefone']}", fill="black", font=font)
-        draw.text((20,145), f"FUNCAO: {dados['funcao']}", fill="black", font=font)
-        draw.text((20,185), f"SUPERVISOR: {dados['lider_imediato'][:30]} | COORD: {dados.get('coordenador','')[:25]}", fill="black", font=font)
-        img.save(caminho_png)
+        def text_bold(x,y,txt,color):
+            draw.text((x,y),txt,fill=color,font=font)
+            draw.text((x+1,y),txt,fill=color,font=font)
+
+        # HEADER
+        draw.rounded_rectangle([(0,0),(W,90)], radius=0, fill=(11,42,74))
+        text_bold(30,15,"MASCARA DE PATRIMONIO",(255,255,255))
+        draw.text((30,45),f"Gerado em {data_str} | Sistema Fotos Patrimonio",fill=(180,200,220),font=font)
+        draw.rounded_rectangle([(W-220,15),(W-20,75)], radius=12, fill=(255,255,255), outline=(255,255,255))
+        draw.text((W-200,35),"KIT FUSAO+OTDR",fill=(11,42,74),font=font)
+
+        # CARD MAQUINA VERDE
+        draw.rounded_rectangle([(20,110),(580,280)], radius=18, fill=(255,255,255), outline=(46,125,50), width=3)
+        draw.rounded_rectangle([(20,110),(580,150)], radius=18, fill=(232,245,233))
+        draw.rectangle([(20,135),(580,152)], fill=(232,245,233))
+        draw.text((35,118),"MAQUINA DE FUSAO",fill=(46,125,50),font=font)
+        text_bold(35,170,f"{dados['pat_maquina']}",(20,60,20))
+        draw.text((35,210),"Patrimonio identificado",fill=(100,140,100),font=font)
+
+        # CARD OTDR LARANJA
+        draw.rounded_rectangle([(620,110),(1180,280)], radius=18, fill=(255,255,255), outline=(239,108,0), width=3)
+        draw.rounded_rectangle([(620,110),(1180,150)], radius=18, fill=(255,243,224))
+        draw.rectangle([(620,135),(1180,152)], fill=(255,243,224))
+        draw.text((635,118),"OTDR - REFLETOMETRO",fill=(239,108,0),font=font)
+        text_bold(635,170,f"{dados['pat_otdr']}",(80,40,0))
+        draw.text((635,210),"Patrimonio identificado",fill=(180,130,80),font=font)
+
+        # INFO PRINCIPAL
+        draw.rounded_rectangle([(20,300),(1180,620)], radius=18, fill=(255,255,255), outline=(220,225,230), width=2)
+        draw.rounded_rectangle([(35,315),(200,355)], radius=20, fill=(255,243,205), outline=(255,193,7), width=2)
+        draw.text((50,325),f"CHAPA: {dados['chapa']}",fill=(120,80,0),font=font)
+        text_bold(220,320,f"{dados['nome'][:45]}",(15,30,60))
+        draw.text((220,345),f"TEL: {dados['telefone']} | FUNCAO: {dados['funcao']}",fill=(80,90,110),font=font)
+        
+        draw.rounded_rectangle([(35,380),(570,450)], radius=12, fill=(227,242,253), outline=(144,202,249))
+        draw.text((45,388),"SUPERVISOR / LIDER",fill=(13,71,161),font=font)
+        text_bold(45,410,f"{dados['lider_imediato'][:35]}",(10,30,70))
+        
+        draw.rounded_rectangle([(590,380),(1165,450)], radius=12, fill=(243,229,245), outline=(206,147,216))
+        draw.text((600,388),"COORDENADOR",fill=(74,20,140),font=font)
+        text_bold(600,410,f"{dados.get('coordenador','')[:35]}",(50,20,80))
+        
+        draw.line([(35,475),(1165,475)], fill=(230,230,230), width=2)
+        draw.text((35,490),f"CHAPA: {dados['chapa']} | COLABORADOR CADASTRADO NO SISTEMA DE FOTOS",fill=(100,100,100),font=font)
+        draw.text((35,515),f"Este documento comprova posse do KIT: {dados['pat_maquina']} + {dados['pat_otdr']}",fill=(100,100,100),font=font)
+
+        draw.rounded_rectangle([(0,640),(W,H)], radius=0, fill=(11,42,74))
+        draw.text((30,660),f"Documento gerado automaticamente | {data_str}",fill=(180,200,220),font=font)
+        draw.text((W-250,660),f"ID: {nome_base[:12].upper()}",fill=(255,255,255),font=font)
+
+        img.save(caminho_png, quality=95)
         return caminho_txt, caminho_png, texto
     except Exception as e:
         print(f"ERRO MASCARA: {e}")
@@ -106,59 +150,44 @@ SUPERVISOR/LIDER: {dados['lider_imediato']} | COORD: {dados.get('coordenador',''
 
 def apagar_tudo_da_chapa(chapa):
     chapa = str(chapa).strip().zfill(6)
-    res = {'inventario':0,'fotos':0}
     try:
         novas=[]
         with open(ARQ_INV, encoding="utf-8") as f:
             for r in csv.DictReader(f):
-                if str(r.get('chapa','')).zfill(6)==chapa:
-                    res['inventario']+=1
+                if str(r.get('chapa','')).zfill(6)!=chapa: novas.append(r)
+                else:
                     for k in ["foto_maquina1","foto_maquina2","foto_maquina3","foto_otdr1","foto_otdr2","foto_otdr3","mascara_arquivo"]:
                         caminho = r.get(k,'')
                         if caminho and os.path.exists(caminho):
-                            try: os.remove(caminho); res['fotos']+=1
+                            try: os.remove(caminho)
                             except: pass
-                else: novas.append(r)
         with open(ARQ_INV, "w", newline="", encoding="utf-8") as f:
             w=csv.DictWriter(f, fieldnames=["data_registro","chapa","nome","funcao","lider_imediato","coordenador","telefone","tipo_item","patrimonio_maquina","patrimonio_otdr","foto_maquina1","foto_maquina2","foto_maquina3","foto_otdr1","foto_otdr2","foto_otdr3","mascara_arquivo"])
             w.writeheader(); w.writerows(novas)
     except Exception as e: print(e)
-    return res
 
 app_flask = Flask(__name__)
-
 @app_flask.route('/')
-def home(): return "BOT FOTOS ON - BASE ORIGINAL + ZIP"
-
+def home(): return "BOT ON - MASCARA COLORIDA"
 @app_flask.route('/fotos/<path:filename>')
 def foto(filename): return send_from_directory(PASTA_FOTOS, filename)
-
 @app_flask.route('/mascaras/<path:filename>')
 def masc(filename): return send_from_directory(PASTA_MASCARAS, filename)
-
 @app_flask.route('/apagar/<chapa>')
-def apagar_chapa_url(chapa):
-    apagar_tudo_da_chapa(chapa)
-    return f"<script>alert('Chapa {chapa} apagada!'); window.location='/base';</script>"
-
+def apagar_chapa_url(chapa): apagar_tudo_da_chapa(chapa); return f"<script>alert('Chapa {chapa} apagada!'); window.location='/base';</script>"
 @app_flask.route('/atualizar_base', methods=['GET','POST'])
 def atualizar_base():
     if request.method == 'POST':
         file = request.files['arquivo']; file.save(ARQ_FUNC)
-        return f"<h2>Base atualizada</h2><a href=/base>Ver Base</a> | <a href=/ver_func>Ver Funcionarios</a>"
+        return f"<h2>Base atualizada</h2><a href=/base>Ver Base</a>"
     return """<form method='POST' enctype='multipart/form-data'><input type='file' name='arquivo' accept='.csv' required><button>ATUALIZAR BASE</button></form>"""
-
 @app_flask.route('/ver_func')
 def ver_func():
     try:
-        with open(ARQ_FUNC, encoding="utf-8-sig") as f:
-            linhas = f.readlines()
-            return f"<h2>Funcionarios: {len(linhas)-1}</h2><pre>{''.join(linhas[:30])}</pre><a href=/base>Voltar</a>"
+        with open(ARQ_FUNC, encoding="utf-8-sig") as f: linhas=f.readlines(); return f"<h2>Funcionarios: {len(linhas)-1}</h2><pre>{''.join(linhas[:20])}</pre><a href=/base>Voltar</a>"
     except Exception as e: return str(e)
-
 @app_flask.route('/exportar')
 def exp(): return send_file(ARQ_INV, as_attachment=True)
-
 @app_flask.route('/exportar_zip')
 def exportar_zip():
     zip_name = f"export_fotos_{datetime.datetime.now().strftime('%d%m%Y_%H%M')}.zip"
@@ -170,13 +199,10 @@ def exportar_zip():
             if os.path.exists(pasta):
                 for arquivo in os.listdir(pasta):
                     caminho = os.path.join(pasta, arquivo)
-                    if os.path.isfile(caminho):
-                        z.write(caminho, arcname=os.path.join(pasta, arquivo))
+                    if os.path.isfile(caminho): z.write(caminho, arcname=os.path.join(pasta, arquivo))
     return send_file(zip_path, as_attachment=True, download_name=zip_name)
-
 @app_flask.route('/exportar_winrar')
 def exportar_winrar(): return exportar_zip()
-
 @app_flask.route('/apagar_chapa', methods=['GET','POST'])
 def apagar_chapa_page():
     if request.method == 'POST':
@@ -184,7 +210,6 @@ def apagar_chapa_page():
         if chapa: apagar_tudo_da_chapa(chapa)
         return f"<h2>Chapa {chapa} apagada!</h2><a href=/base>Voltar</a>"
     return """<html><head><meta charset='utf-8'></head><body><h2>APAGAR POR CHAPA</h2><form method='POST'>CHAPA: <input name='chapa' required><button>APAGAR TUDO</button></form><br><a href=/base>Voltar</a></body></html>"""
-
 @app_flask.route('/base')
 def base():
     chapa_filtro = request.args.get('chapa','').strip()
@@ -196,11 +221,13 @@ def base():
     th,td{{padding:10px 8px;border:1px solid #ddd; text-align:center; font-size:13px}}
     th{{background:#0F3057;color:white}}
     .foto-padrao{{width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #ccc;margin:2px}}
-    .foto-padrao:hover{{transform:scale(3);z-index:100;position:relative; box-shadow:0 0 10px black}}
+    .foto-padrao:hover{{transform:scale(3);z-index:100;position:relative}}
+    .mascara-preview{{width:130px;height:75px;object-fit:cover;border-radius:8px;border:2px solid #0F3057; cursor:pointer}}
+    .mascara-preview:hover{{transform:scale(2.5);z-index:100;position:relative; box-shadow:0 0 15px black}}
     .btn-apagar{{background:#dc3545;color:white;padding:6px 10px;border-radius:5px;text-decoration:none;font-weight:bold}}
     input{{padding:6px}} button{{padding:6px 12px; cursor:pointer}}
     </style></head><body>
-    <h2>BASE FOTOS - ESTILOSA</h2>
+    <h2>BASE FOTOS - ESTILOSA - MASCARA COLORIDA</h2>
     <form method='GET' style='margin-bottom:15px'>
         CHAPA: <input name='chapa' value='{chapa_filtro}' placeholder='Digite a chapa'>
         <button type='submit'>BUSCAR</button>
@@ -208,25 +235,22 @@ def base():
         <a href='/apagar_chapa' style='margin-left:20px'><button type='button' style='background:#ff9800;color:white'>APAGAR POR CHAPA</button></a>
         <a href='/ver_func' style='margin-left:10px'><button type='button'>VER FUNCIONARIOS</button></a>
     </form>
-    <table><tr>
-        <th>DATA</th><th>CHAPA</th><th>NOME</th><th>TEL</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA</th><th>AÇÃO</th>
-    </tr>
+    <table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>TEL</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA COLORIDA</th><th>AÇÃO</th></tr>
     """
     try:
         with open(ARQ_INV, encoding="utf-8") as f:
             reader = list(csv.DictReader(f))
-            if chapa_filtro:
-                reader = [r for r in reader if chapa_filtro.zfill(6) in str(r.get('chapa','')).zfill(6) or chapa_filtro in str(r.get('chapa',''))]
+            if chapa_filtro: reader = [r for r in reader if chapa_filtro.zfill(6) in str(r.get('chapa','')).zfill(6) or chapa_filtro in str(r.get('chapa',''))]
             for r in reader:
                 f_maq = "".join([f"<a href=/{r.get(k,'')} target=_blank><img class='foto-padrao' src=/{r.get(k,'')}></a>" for k in ["foto_maquina1","foto_maquina2","foto_maquina3"] if r.get(k) and os.path.exists(r.get(k,''))])
                 f_otdr = "".join([f"<a href=/{r.get(k,'')} target=_blank><img class='foto-padrao' src=/{r.get(k,'')}></a>" for k in ["foto_otdr1","foto_otdr2","foto_otdr3"] if r.get(k) and os.path.exists(r.get(k,''))])
-                masc = f"<a href=/{r.get('mascara_arquivo','')} target=_blank><img class='foto-padrao' src=/{r.get('mascara_arquivo','')}></a>" if r.get('mascara_arquivo') and os.path.exists(r.get('mascara_arquivo','')) else "-"
-                html+=f"<tr><td>{r.get('data_registro','')}</td><td><b>{r.get('chapa','')}</b></td><td>{r.get('nome','')[:20]}</td><td>{r.get('telefone','')}</td><td>{r.get('patrimonio_maquina','')}</td><td>{r.get('patrimonio_otdr','')}</td><td>{f_maq or '-'}</td><td>{f_otdr or '-'}</td><td>{masc}</td><td><a class='btn-apagar' href='/apagar/{r.get('chapa','')}' onclick=\"return confirm('Apagar TUDO da chapa {r.get('chapa','')}?')\">APAGAR</a></td></tr>"
-            if not reader:
-                html+=f"<tr><td colspan=10 style='padding:30px'>Nenhum registro. {f'Filtro {chapa_filtro} nao encontrado' if chapa_filtro else 'Aguardando cadastros.'}</td></tr>"
-    except Exception as e:
-        html+=f"<tr><td colspan=10>Erro: {e}</td></tr>"
-    html+=f"</table><br><div style='margin-top:20px'><a href='/exportar' style='background:#0F3057;color:white;padding:10px 15px;border-radius:5px;text-decoration:none;margin-right:10px'>📄 Exportar CSV</a> <a href='/exportar_zip' style='background:#28a745;color:white;padding:10px 15px;border-radius:5px;text-decoration:none;margin-right:10px'>📦 Exportar ZIP / WinRar (Fotos+Mascaras)</a> Total: {len(reader) if 'reader' in locals() else 0} registros</div></body></html>"
+                if r.get('mascara_arquivo') and os.path.exists(r.get('mascara_arquivo','')):
+                    masc = f"<a href=/{r.get('mascara_arquivo','')} target=_blank><img class='mascara-preview' src=/{r.get('mascara_arquivo','')} title='Clique para ver grande'></a>"
+                else: masc = "-"
+                html+=f"<tr><td>{r.get('data_registro','')}</td><td><b>{r.get('chapa','')}</b></td><td>{r.get('nome','')[:18]}</td><td>{r.get('telefone','')}</td><td>{r.get('patrimonio_maquina','')}</td><td>{r.get('patrimonio_otdr','')}</td><td>{f_maq or '-'}</td><td>{f_otdr or '-'}</td><td>{masc}</td><td><a class='btn-apagar' href='/apagar/{r.get('chapa','')}' onclick=\"return confirm('Apagar chapa {r.get('chapa','')}?')\">APAGAR</a></td></tr>"
+            if not reader: html+=f"<tr><td colspan=10 style='padding:30px'>Nenhum registro. {f'Filtro {chapa_filtro} nao encontrado' if chapa_filtro else 'Aguardando cadastros.'}</td></tr>"
+    except Exception as e: html+=f"<tr><td colspan=10>Erro: {e}</td></tr>"
+    html+=f"</table><br><div style='margin-top:20px'><a href='/exportar' style='background:#0F3057;color:white;padding:10px 15px;border-radius:5px;text-decoration:none;margin-right:10px'>📄 Exportar CSV</a> <a href='/exportar_zip' style='background:#28a745;color:white;padding:10px 15px;border-radius:5px;text-decoration:none'>📦 Exportar ZIP / WinRar</a></div></body></html>"
     return html
 
 def run_flask(): app_flask.run(host='0.0.0.0', port=int(os.environ.get("PORT",10000)))
@@ -296,21 +320,18 @@ async def otdr_f3_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"RESUMO:\nMAQ: {context.user_data['pat_maquina']}\nOTDR: {context.user_data['pat_otdr']}\nFinalizar?", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True)); return FINAL
 async def final_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "CANCELAR" in update.message.text.upper():
-        await update.message.reply_text("Cancelado. /start")
-        return ConversationHandler.END
+        await update.message.reply_text("Cancelado. /start"); return ConversationHandler.END
     try:
-        await update.message.reply_text("⏳ Gerando mascara...")
+        await update.message.reply_text("⏳ Gerando mascara colorida...")
         masc_txt, masc_png, texto_masc = gerar_mascara(context.user_data)
         data_reg = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
         with open(ARQ_INV, "a", newline="", encoding="utf-8") as f:
             csv.writer(f).writerow([data_reg, context.user_data["chapa"], context.user_data["nome"], context.user_data["funcao"], context.user_data["lider_imediato"], context.user_data["coordenador"], context.user_data["telefone"], "KIT MAQ+OTDR", context.user_data["pat_maquina"], context.user_data["pat_otdr"], context.user_data["maq_f1"], context.user_data["maq_f2"], context.user_data["maq_f3"], context.user_data["otdr_f1"], context.user_data["otdr_f2"], context.user_data["otdr_f3"], masc_png])
         await update.message.reply_text(f"✅ SALVO!\n\n{texto_masc}")
         if os.path.exists(masc_txt):
-            with open(masc_txt, "rb") as doc:
-                await context.bot.send_document(chat_id=update.effective_chat.id, document=doc, filename=os.path.basename(masc_txt))
+            with open(masc_txt, "rb") as doc: await context.bot.send_document(chat_id=update.effective_chat.id, document=doc, filename=os.path.basename(masc_txt))
         if masc_png and os.path.exists(masc_png):
-            with open(masc_png, "rb") as photo:
-                await context.bot.send_photo(chat_id=update.effective_chat.id, photo=photo, caption=f"MASCARA {context.user_data['pat_maquina']} + {context.user_data['pat_otdr']}")
+            with open(masc_png, "rb") as photo: await context.bot.send_photo(chat_id=update.effective_chat.id, photo=photo, caption=f"🎨 MASCARA COLORIDA {context.user_data['pat_maquina']} + {context.user_data['pat_otdr']}")
         await update.message.reply_text("Para novo KIT /start")
     except Exception as e:
         print(f"ERRO FINAL: {e}")
@@ -326,7 +347,7 @@ def main():
     application = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(entry_points=[CommandHandler("start", start)], states={CHAPA: [MessageHandler(filters.TEXT & ~filters.COMMAND, chapa_step)], TELEFONE: [MessageHandler(filters.ALL, telefone_step)], MAQ_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, maq_pat_step)], MAQ_F1: [MessageHandler(filters.PHOTO, maq_f1_step)], MAQ_F2: [MessageHandler(filters.PHOTO, maq_f2_step)], MAQ_F3: [MessageHandler(filters.PHOTO, maq_f3_step)], OTDR_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, otdr_pat_step)], OTDR_F1: [MessageHandler(filters.PHOTO, otdr_f1_step)], OTDR_F2: [MessageHandler(filters.PHOTO, otdr_f2_step)], OTDR_F3: [MessageHandler(filters.PHOTO, otdr_f3_step)], FINAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, final_step)]}, fallbacks=[CommandHandler("cancel", cancel)])
     application.add_handler(conv)
-    print(">>> BOT ON - BASE ORIGINAL 8578 + ZIP + SEM TRAVAR")
+    print(">>> BOT ON - MASCARA COLORIDA + BASE + ZIP")
     application.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__": main()
