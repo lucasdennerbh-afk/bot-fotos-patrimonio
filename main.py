@@ -1,4 +1,4 @@
-import os, threading, csv, datetime, re, uuid
+import os, threading, csv, datetime, re, uuid, zipfile
 from flask import Flask, send_from_directory, send_file, request
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, ContextTypes
@@ -82,26 +82,27 @@ CHAPA: {dados['chapa']} | COLABORADOR: {dados['nome']} | TEL: {dados['telefone']
 FUNCAO: {dados['funcao']}
 SUPERVISOR/LIDER: {dados['lider_imediato']} | COORD: {dados.get('coordenador','')}
 """
-    nome_txt = f"{dados['pat_maquina']}_{dados['pat_otdr']}_{uuid.uuid4().hex[:4]}.txt"
-    caminho_txt = os.path.join(PASTA_MASCARAS, nome_txt)
-    with open(caminho_txt, "w", encoding="utf-8") as f: f.write(texto)
-    W, H = 1050, 350
-    img = Image.new('RGB', (W, H), color='white')
-    draw = ImageDraw.Draw(img)
     try:
-        f_b = ImageFont.truetype("arialbd.ttf", 22)
-        f_n = ImageFont.truetype("arial.ttf", 20)
-    except: f_b = f_n = ImageFont.load_default()
-    draw.rectangle([(0,0,W,50)], fill=(15,48,87))
-    draw.text((20,12), f"MASCARA - PATRIMONIO | {data_str}", fill="white", font=f_b)
-    draw.text((20,70), f"MAQUINA: {dados['pat_maquina']}  |  OTDR: {dados['pat_otdr']}", fill=(0,0,0), font=f_b)
-    draw.text((20,110), f"CHAPA: {dados['chapa']} | COLAB: {dados['nome'][:35]} | TEL: {dados['telefone']}", fill=(0,0,0), font=f_n)
-    draw.text((20,145), f"FUNCAO: {dados['funcao']}", fill=(0,0,0), font=f_n)
-    draw.text((20,185), f"SUPERVISOR: {dados['lider_imediato'][:25]} | COORD: {dados.get('coordenador','')[:25]}", fill=(0,0,0), font=f_n)
-    nome_png = nome_txt.replace(".txt",".png")
-    caminho_png = os.path.join(PASTA_MASCARAS, nome_png)
-    img.save(caminho_png, quality=95)
-    return caminho_txt, caminho_png, texto
+        os.makedirs(PASTA_MASCARAS, exist_ok=True)
+        nome_base = f"{dados['pat_maquina']}_{dados['pat_otdr']}_{uuid.uuid4().hex[:4]}"
+        caminho_txt = os.path.join(PASTA_MASCARAS, f"{nome_base}.txt")
+        caminho_png = os.path.join(PASTA_MASCARAS, f"{nome_base}.png")
+        with open(caminho_txt, "w", encoding="utf-8") as f: f.write(texto)
+        W, H = 1050, 350
+        img = Image.new('RGB', (W, H), color='white')
+        draw = ImageDraw.Draw(img)
+        font = ImageFont.load_default()
+        draw.rectangle([(0,0,W,50)], fill=(15,48,87))
+        draw.text((20,12), f"MASCARA - PATRIMONIO | {data_str}", fill="white", font=font)
+        draw.text((20,70), f"MAQUINA: {dados['pat_maquina']}  |  OTDR: {dados['pat_otdr']}", fill="black", font=font)
+        draw.text((20,110), f"CHAPA: {dados['chapa']} | COLAB: {dados['nome'][:35]} | TEL: {dados['telefone']}", fill="black", font=font)
+        draw.text((20,145), f"FUNCAO: {dados['funcao']}", fill="black", font=font)
+        draw.text((20,185), f"SUPERVISOR: {dados['lider_imediato'][:30]} | COORD: {dados.get('coordenador','')[:25]}", fill="black", font=font)
+        img.save(caminho_png)
+        return caminho_txt, caminho_png, texto
+    except Exception as e:
+        print(f"ERRO MASCARA: {e}")
+        return caminho_txt if 'caminho_txt' in locals() else "", caminho_png if 'caminho_png' in locals() else "", texto
 
 def apagar_tudo_da_chapa(chapa):
     chapa = str(chapa).strip().zfill(6)
@@ -124,11 +125,10 @@ def apagar_tudo_da_chapa(chapa):
     except Exception as e: print(e)
     return res
 
-# ===== FLASK - BASE ORIGINAL =====
 app_flask = Flask(__name__)
 
 @app_flask.route('/')
-def home(): return "BOT FOTOS ON - BASE ORIGINAL"
+def home(): return "BOT FOTOS ON - BASE ORIGINAL + ZIP"
 
 @app_flask.route('/fotos/<path:filename>')
 def foto(filename): return send_from_directory(PASTA_FOTOS, filename)
@@ -145,16 +145,45 @@ def apagar_chapa_url(chapa):
 def atualizar_base():
     if request.method == 'POST':
         file = request.files['arquivo']; file.save(ARQ_FUNC)
-        return f"<h2>Base atualizada - {ARQ_FUNC}</h2><a href=/base>Ver Base</a> | <a href=/ver_func>Ver Funcionarios</a>"
-    return """<form method='POST' enctype='multipart/form-data'><input type='file' name='arquivo' accept='.csv' required><button>ATUALIZAR BASE FUNCIONARIOS</button></form>"""
+        return f"<h2>Base atualizada</h2><a href=/base>Ver Base</a> | <a href=/ver_func>Ver Funcionarios</a>"
+    return """<form method='POST' enctype='multipart/form-data'><input type='file' name='arquivo' accept='.csv' required><button>ATUALIZAR BASE</button></form>"""
 
 @app_flask.route('/ver_func')
 def ver_func():
     try:
         with open(ARQ_FUNC, encoding="utf-8-sig") as f:
             linhas = f.readlines()
-            return f"<h2>Funcionarios: {len(linhas)-1} colaboradores</h2><pre>{''.join(linhas[:20])}</pre><p>... e mais {len(linhas)-20} linhas</p><a href=/base>Voltar</a>"
+            return f"<h2>Funcionarios: {len(linhas)-1}</h2><pre>{''.join(linhas[:30])}</pre><a href=/base>Voltar</a>"
     except Exception as e: return str(e)
+
+@app_flask.route('/exportar')
+def exp(): return send_file(ARQ_INV, as_attachment=True)
+
+@app_flask.route('/exportar_zip')
+def exportar_zip():
+    zip_name = f"export_fotos_{datetime.datetime.now().strftime('%d%m%Y_%H%M')}.zip"
+    zip_path = os.path.join("/tmp", zip_name)
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(ARQ_INV): z.write(ARQ_INV, arcname="inventario_fotos.csv")
+        if os.path.exists(ARQ_CAD): z.write(ARQ_CAD, arcname="cadastros_fotos.csv")
+        for pasta in [PASTA_FOTOS, PASTA_MASCARAS]:
+            if os.path.exists(pasta):
+                for arquivo in os.listdir(pasta):
+                    caminho = os.path.join(pasta, arquivo)
+                    if os.path.isfile(caminho):
+                        z.write(caminho, arcname=os.path.join(pasta, arquivo))
+    return send_file(zip_path, as_attachment=True, download_name=zip_name)
+
+@app_flask.route('/exportar_winrar')
+def exportar_winrar(): return exportar_zip()
+
+@app_flask.route('/apagar_chapa', methods=['GET','POST'])
+def apagar_chapa_page():
+    if request.method == 'POST':
+        chapa = request.form.get('chapa','').strip()
+        if chapa: apagar_tudo_da_chapa(chapa)
+        return f"<h2>Chapa {chapa} apagada!</h2><a href=/base>Voltar</a>"
+    return """<html><head><meta charset='utf-8'></head><body><h2>APAGAR POR CHAPA</h2><form method='POST'>CHAPA: <input name='chapa' required><button>APAGAR TUDO</button></form><br><a href=/base>Voltar</a></body></html>"""
 
 @app_flask.route('/base')
 def base():
@@ -169,9 +198,7 @@ def base():
     .foto-padrao{{width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #ccc;margin:2px}}
     .foto-padrao:hover{{transform:scale(3);z-index:100;position:relative; box-shadow:0 0 10px black}}
     .btn-apagar{{background:#dc3545;color:white;padding:6px 10px;border-radius:5px;text-decoration:none;font-weight:bold}}
-    .btn-apagar:hover{{background:#a71d2a}}
-    input{{padding:6px}}
-    button{{padding:6px 12px; cursor:pointer}}
+    input{{padding:6px}} button{{padding:6px 12px; cursor:pointer}}
     </style></head><body>
     <h2>BASE FOTOS - ESTILOSA</h2>
     <form method='GET' style='margin-bottom:15px'>
@@ -196,36 +223,14 @@ def base():
                 masc = f"<a href=/{r.get('mascara_arquivo','')} target=_blank><img class='foto-padrao' src=/{r.get('mascara_arquivo','')}></a>" if r.get('mascara_arquivo') and os.path.exists(r.get('mascara_arquivo','')) else "-"
                 html+=f"<tr><td>{r.get('data_registro','')}</td><td><b>{r.get('chapa','')}</b></td><td>{r.get('nome','')[:20]}</td><td>{r.get('telefone','')}</td><td>{r.get('patrimonio_maquina','')}</td><td>{r.get('patrimonio_otdr','')}</td><td>{f_maq or '-'}</td><td>{f_otdr or '-'}</td><td>{masc}</td><td><a class='btn-apagar' href='/apagar/{r.get('chapa','')}' onclick=\"return confirm('Apagar TUDO da chapa {r.get('chapa','')}?')\">APAGAR</a></td></tr>"
             if not reader:
-                html+=f"<tr><td colspan=10 style='padding:30px'>Nenhum registro ainda. {f'Filtro chapa={chapa_filtro} não encontrado' if chapa_filtro else 'Aguardando primeiro cadastro no bot.'}</td></tr>"
+                html+=f"<tr><td colspan=10 style='padding:30px'>Nenhum registro. {f'Filtro {chapa_filtro} nao encontrado' if chapa_filtro else 'Aguardando cadastros.'}</td></tr>"
     except Exception as e:
         html+=f"<tr><td colspan=10>Erro: {e}</td></tr>"
-    html+="</table><br><a href='/exportar'>Exportar CSV</a></body></html>"
+    html+=f"</table><br><div style='margin-top:20px'><a href='/exportar' style='background:#0F3057;color:white;padding:10px 15px;border-radius:5px;text-decoration:none;margin-right:10px'>📄 Exportar CSV</a> <a href='/exportar_zip' style='background:#28a745;color:white;padding:10px 15px;border-radius:5px;text-decoration:none;margin-right:10px'>📦 Exportar ZIP / WinRar (Fotos+Mascaras)</a> Total: {len(reader) if 'reader' in locals() else 0} registros</div></body></html>"
     return html
-
-@app_flask.route('/apagar_chapa', methods=['GET','POST'])
-def apagar_chapa_page():
-    if request.method == 'POST':
-        chapa = request.form.get('chapa','').strip()
-        if chapa:
-            apagar_tudo_da_chapa(chapa)
-            return f"<h2>Chapa {chapa} apagada com sucesso!</h2><a href=/base>Voltar para BASE</a>"
-    return """
-    <html><head><meta charset='utf-8'><title>Apagar por Chapa</title>
-    <style>body{font-family:Arial;padding:30px} input{padding:10px} button{padding:10px 15px;background:#dc3545;color:white;border:none;border-radius:5px;cursor:pointer}</style>
-    </head><body>
-    <h2>APAGAR POR CHAPA</h2>
-    <p>Digite a chapa para apagar TODOS os registros e fotos dessa chapa:</p>
-    <form method='POST'>CHAPA: <input name='chapa' required placeholder='Ex: 062289'><button type='submit'>APAGAR TUDO DA CHAPA</button></form>
-    <br><br><a href=/base>Voltar para BASE</a>
-    </body></html>
-    """
-
-@app_flask.route('/exportar')
-def exp(): return send_file(ARQ_INV, as_attachment=True)
 
 def run_flask(): app_flask.run(host='0.0.0.0', port=int(os.environ.get("PORT",10000)))
 
-# ===== BOT TELEGRAM =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("📸 Sistema Fotos Patrimonio\nEnvie sua CHAPA:")
@@ -233,7 +238,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def chapa_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chapa=update.message.text.strip().zfill(6)
     dados=buscar_na_base_mestra(chapa)
-    if not dados: await update.message.reply_text(f"❌ Chapa {chapa} nao existe na base de {ARQ_FUNC}"); return CHAPA
+    if not dados: await update.message.reply_text(f"❌ Chapa {chapa} nao existe"); return CHAPA
     cad=buscar_cadastro(chapa)
     if cad and cad.get("telefone"):
         context.user_data.update(cad)
@@ -290,15 +295,26 @@ async def otdr_f3_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb=[[KeyboardButton("✅ FINALIZAR E GERAR MASCARA")]]
     await update.message.reply_text(f"RESUMO:\nMAQ: {context.user_data['pat_maquina']}\nOTDR: {context.user_data['pat_otdr']}\nFinalizar?", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True)); return FINAL
 async def final_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if "CANCELAR" in update.message.text.upper(): await update.message.reply_text("Cancelado. /start"); return ConversationHandler.END
-    masc_txt, masc_png, texto_masc = gerar_mascara(context.user_data)
-    data_reg = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    with open(ARQ_INV, "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([data_reg, context.user_data["chapa"], context.user_data["nome"], context.user_data["funcao"], context.user_data["lider_imediato"], context.user_data["coordenador"], context.user_data["telefone"], "KIT MAQ+OTDR", context.user_data["pat_maquina"], context.user_data["pat_otdr"], context.user_data["maq_f1"], context.user_data["maq_f2"], context.user_data["maq_f3"], context.user_data["otdr_f1"], context.user_data["otdr_f2"], context.user_data["otdr_f3"], masc_png])
-    await update.message.reply_text(f"✅ SALVO!\n\n{texto_masc}")
-    await context.bot.send_document(chat_id=update.effective_chat.id, document=open(masc_txt, "rb"), filename=os.path.basename(masc_txt))
-    await context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(masc_png, "rb"), caption=f"MASCARA {context.user_data['pat_maquina']} + {context.user_data['pat_otdr']}")
-    await update.message.reply_text("Para novo KIT /start")
+    if "CANCELAR" in update.message.text.upper():
+        await update.message.reply_text("Cancelado. /start")
+        return ConversationHandler.END
+    try:
+        await update.message.reply_text("⏳ Gerando mascara...")
+        masc_txt, masc_png, texto_masc = gerar_mascara(context.user_data)
+        data_reg = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        with open(ARQ_INV, "a", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerow([data_reg, context.user_data["chapa"], context.user_data["nome"], context.user_data["funcao"], context.user_data["lider_imediato"], context.user_data["coordenador"], context.user_data["telefone"], "KIT MAQ+OTDR", context.user_data["pat_maquina"], context.user_data["pat_otdr"], context.user_data["maq_f1"], context.user_data["maq_f2"], context.user_data["maq_f3"], context.user_data["otdr_f1"], context.user_data["otdr_f2"], context.user_data["otdr_f3"], masc_png])
+        await update.message.reply_text(f"✅ SALVO!\n\n{texto_masc}")
+        if os.path.exists(masc_txt):
+            with open(masc_txt, "rb") as doc:
+                await context.bot.send_document(chat_id=update.effective_chat.id, document=doc, filename=os.path.basename(masc_txt))
+        if masc_png and os.path.exists(masc_png):
+            with open(masc_png, "rb") as photo:
+                await context.bot.send_photo(chat_id=update.effective_chat.id, photo=photo, caption=f"MASCARA {context.user_data['pat_maquina']} + {context.user_data['pat_otdr']}")
+        await update.message.reply_text("Para novo KIT /start")
+    except Exception as e:
+        print(f"ERRO FINAL: {e}")
+        await update.message.reply_text(f"❌ Erro: {e}\nTente /start")
     return ConversationHandler.END
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE): await update.message.reply_text("Cancelado. /start"); return ConversationHandler.END
 
@@ -310,7 +326,7 @@ def main():
     application = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(entry_points=[CommandHandler("start", start)], states={CHAPA: [MessageHandler(filters.TEXT & ~filters.COMMAND, chapa_step)], TELEFONE: [MessageHandler(filters.ALL, telefone_step)], MAQ_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, maq_pat_step)], MAQ_F1: [MessageHandler(filters.PHOTO, maq_f1_step)], MAQ_F2: [MessageHandler(filters.PHOTO, maq_f2_step)], MAQ_F3: [MessageHandler(filters.PHOTO, maq_f3_step)], OTDR_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, otdr_pat_step)], OTDR_F1: [MessageHandler(filters.PHOTO, otdr_f1_step)], OTDR_F2: [MessageHandler(filters.PHOTO, otdr_f2_step)], OTDR_F3: [MessageHandler(filters.PHOTO, otdr_f3_step)], FINAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, final_step)]}, fallbacks=[CommandHandler("cancel", cancel)])
     application.add_handler(conv)
-    print(">>> BOT ON - BASE ORIGINAL 8578")
+    print(">>> BOT ON - BASE ORIGINAL 8578 + ZIP + SEM TRAVAR")
     application.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__": main()
