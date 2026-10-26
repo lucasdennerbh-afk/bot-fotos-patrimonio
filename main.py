@@ -1,23 +1,26 @@
 import os, threading, csv, datetime, re, uuid, zipfile, time, asyncio
-from flask import Flask, send_from_directory, send_file
+from flask import Flask, send_from_directory, send_file, request
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, ContextTypes
+from PIL import Image, ImageDraw, ImageFont
 
 TOKEN = os.environ.get("BOT_TOKEN")
-print(f">>> TOKEN EXISTE? {bool(TOKEN)} - Tamanho: {len(TOKEN) if TOKEN else 0}")
+print(f">>> TOKEN EXISTE? {bool(TOKEN)}")
 
 ARQ_FUNC = "funcionarios.csv"
 ARQ_CAD = "cadastros_fotos.csv"
 ARQ_INV = "inventario_fotos.csv"
 PASTA_FOTOS = "fotos"
+PASTA_MASCARAS = "mascaras"
 os.makedirs(PASTA_FOTOS, exist_ok=True)
+os.makedirs(PASTA_MASCARAS, exist_ok=True)
 
-for arq, header in [(ARQ_CAD, ["chapa","nome","funcao","lider_imediato","coordenador","telefone","id_telegram"]),(ARQ_INV, ["data_registro","chapa","nome","funcao","lider_imediato","coordenador","telefone","tipo_item","patrimonio","foto1","foto2","foto3"])]:
+for arq, header in [(ARQ_CAD, ["chapa","nome","funcao","lider_imediato","coordenador","telefone","id_telegram"]),(ARQ_INV, ["data_registro","chapa","nome","funcao","lider_imediato","coordenador","telefone","tipo_item","patrimonio_maquina","patrimonio_otdr","foto_maquina1","foto_maquina2","foto_maquina3","foto_otdr1","foto_otdr2","foto_otdr3","mascara_arquivo"])]:
     if not os.path.exists(arq):
         with open(arq, "w", newline="", encoding="utf-8") as f:
             csv.writer(f).writerow(header)
 
-CHAPA, TELEFONE, MENU, PATRIMONIO, FOTO1, FOTO2, FOTO3 = range(7)
+CHAPA, TELEFONE, MAQ_PAT, MAQ_F1, MAQ_F2, MAQ_F3, OTDR_PAT, OTDR_F1, OTDR_F2, OTDR_F3, FINAL = range(11)
 
 def formatar_telefone(t):
     if not t: return ""
@@ -41,8 +44,7 @@ def buscar_na_base_mestra(chapa):
             for r in reader:
                 if str(r.get(ch_col,"")).strip().zfill(6)==chapa_6:
                     return {"nome": str(r.get(nome_col,"")).upper(), "funcao": str(r.get(func_col,"")).upper(), "lider": str(r.get(lider_col,"")).upper(), "coord": str(r.get(coord_col,"")).upper()}
-    except Exception as e:
-        print(f"Erro base: {e}")
+    except Exception as e: print(f"Erro base: {e}")
     return None
 
 def buscar_cadastro(chapa):
@@ -66,61 +68,140 @@ def patrimonio_existe(p):
     try:
         with open(ARQ_INV, encoding="utf-8") as f:
             for r in csv.DictReader(f):
-                if r["patrimonio"].upper()==p.upper(): return True
+                if r.get("patrimonio_maquina","").upper()==p.upper() or r.get("patrimonio_otdr","").upper()==p.upper(): return True
     except: pass
     return False
 
+def gerar_mascara(dados):
+    data_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    texto = f"""MASCARA DE IDENTIFICACAO
+
+MAQUINA FUSAO: {dados['pat_maquina']}
+OTDR: {dados['pat_otdr']}
+
+DATA: {data_str}
+CHAPA: {dados['chapa']} - {dados['nome']}
+TEL: {dados['telefone']}
+
+"""
+    nome_txt = f"{dados['pat_maquina']}_{dados['pat_otdr']}_{uuid.uuid4().hex[:4]}.txt"
+    caminho_txt = os.path.join(PASTA_MASCARAS, nome_txt)
+    with open(caminho_txt, "w", encoding="utf-8") as f:
+        f.write(texto)
+    nome_png = nome_txt.replace(".txt",".png")
+    caminho_png = os.path.join(PASTA_MASCARAS, nome_png)
+    img = Image.new('RGB', (800, 400), color='white')
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("arial.ttf", 28)
+        font2 = ImageFont.truetype("arial.ttf", 22)
+    except:
+        font = ImageFont.load_default()
+        font2 = ImageFont.load_default()
+    draw.rectangle([(0,0),(800,400)], outline="black", width=4)
+    draw.text((20,20), "MASCARA - PATRIMONIO", fill="black", font=font)
+    draw.text((20,80), f"MAQUINA: {dados['pat_maquina']}", fill="black", font=font)
+    draw.text((20,130), f"OTDR: {dados['pat_otdr']}", fill="black", font=font)
+    draw.text((20,200), f"DATA: {data_str}", fill="black", font=font2)
+    draw.text((20,240), f"CHAPA: {dados['chapa']} - {dados['nome']}", fill="black", font=font2)
+    draw.text((20,280), f"TEL: {dados['telefone']}", fill="black", font=font2)
+    draw.text((20,330), f"{dados['funcao']} | {dados['lider_imediato']}", fill="black", font=font2)
+    img.save(caminho_png)
+    return caminho_txt, caminho_png, texto
+
 app_flask = Flask(__name__)
 @app_flask.route('/')
-def home(): return "BOT FOTOS ON"
+def home(): return "BOT FOTOS ON - MASCARA"
 @app_flask.route('/fotos/<path:filename>')
 def foto(filename): return send_from_directory(PASTA_FOTOS, filename)
+@app_flask.route('/mascaras/<path:filename>')
+def masc(filename): return send_from_directory(PASTA_MASCARAS, filename)
+
 @app_flask.route('/base')
 def base():
-    html="<h2>BASE FOTOS</h2><a href=/exportar>CSV</a> | <a href=/exportar_rar>ZIP</a><br><br><table border=1><tr><th>CHAPA</th><th>NOME</th><th>TEL</th><th>FOTOS</th><th>PAT</th><th>TIPO</th></tr>"
+    chapa_filtro = request.args.get('chapa','').strip()
+    nome_filtro = request.args.get('nome','').strip().upper()
+    pat_filtro = request.args.get('patrimonio','').strip().upper()
+    filtro_ativo = chapa_filtro or nome_filtro or pat_filtro
+    html = f"""
+    <html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>BASE FOTOS</title>
+    <style>
+    body{{font-family:Arial;padding:20px;background:#f5f5f5}} .filtro{{background:white;padding:20px;border-radius:10px;box-shadow:0 2px 5px #0001;margin-bottom:20px}}
+    input{{padding:10px;margin:5px;border:1px solid #ccc;border-radius:5px;width:180px}} button{{padding:10px 20px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer;margin:2px}}
+    button:hover{{background:#0056b3}} table{{background:white;width:100%;border-collapse:collapse;font-size:13px}} th,td{{padding:8px;text-align:left;border:1px solid #ddd}} th{{background:#007bff;color:white}} img{{border-radius:5px;margin:2px}} .total{{margin:15px 0;font-weight:bold;background:white;padding:10px;border-radius:5px}}
+    </style></head><body>
+    <h2>📸 BASE FOTOS - FILTRO POR CHAPA</h2>
+    <div class='filtro'>
+        <form method='GET' action='/base'>
+            <b>FILTRAR:</b><br>
+            CHAPA: <input type='text' name='chapa' placeholder='Ex: 001234' value='{chapa_filtro}'>
+            NOME: <input type='text' name='nome' placeholder='Ex: JOAO' value='{nome_filtro}'>
+            PATRIMONIO: <input type='text' name='patrimonio' placeholder='MAQ ou OTDR' value='{pat_filtro}'>
+            <button type='submit'>🔍 BUSCAR</button>
+            <a href='/base'><button type='button'>❌ LIMPAR</button></a>
+        </form>
+        <div style='margin-top:10px'><a href='/exportar'>📥 CSV</a> | <a href='/exportar_rar'>📦 ZIP</a></div>
+    </div>
+    """
+    if filtro_ativo:
+        html += f"<div class='total'>🔎 Filtro: CHAPA={chapa_filtro} NOME={nome_filtro} PAT={pat_filtro} | <a href='/base'>Ver todos</a></div>"
+    html+="<table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>TEL</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA</th></tr>"
+    count=0; count_filtrado=0
     try:
         with open(ARQ_INV, encoding="utf-8") as f:
             for r in csv.DictReader(f):
-                imgs="".join([f"<a href=/{r.get(k,'')} target=_blank><img src=/{r.get(k,'')} width=80></a>" for k in ["foto1","foto2","foto3"] if r.get(k)])
-                html+=f"<tr><td>{r.get('chapa')}</td><td>{r.get('nome')}</td><td>{r.get('telefone')}</td><td>{imgs}</td><td>{r.get('patrimonio')}</td><td>{r.get('tipo_item')}</td></tr>"
-    except Exception as e: html+=f"Erro {e}"
-    return html+"</table>"
+                count+=1
+                if chapa_filtro:
+                    if r.get('chapa','').zfill(6) != chapa_filtro.zfill(6): continue
+                if nome_filtro:
+                    if nome_filtro not in r.get('nome','').upper(): continue
+                if pat_filtro:
+                    if pat_filtro not in r.get('patrimonio_maquina','').upper() and pat_filtro not in r.get('patrimonio_otdr','').upper(): continue
+                count_filtrado+=1
+                f_maq = "".join([f"<a href=/{r.get(k,'')} target=_blank><img src=/{r.get(k,'')} width=60 height=60 style='object-fit:cover'></a>" for k in ["foto_maquina1","foto_maquina2","foto_maquina3"] if r.get(k)])
+                f_otdr = "".join([f"<a href=/{r.get(k,'')} target=_blank><img src=/{r.get(k,'')} width=60 height=60 style='object-fit:cover'></a>" for k in ["foto_otdr1","foto_otdr2","foto_otdr3"] if r.get(k)])
+                masc_link = r.get('mascara_arquivo','')
+                masc = f"<a href=/{masc_link} target=_blank><img src=/{masc_link} width=120><br>VER</a>" if masc_link else ""
+                html+=f"<tr><td>{r.get('data_registro')}</td><td><b>{r.get('chapa')}</b></td><td>{r.get('nome')}<br><small>{r.get('funcao')}</small></td><td>{r.get('telefone')}</td><td><b>{r.get('patrimonio_maquina')}</b></td><td><b>{r.get('patrimonio_otdr')}</b></td><td>{f_maq}</td><td>{f_otdr}</td><td>{masc}</td></tr>"
+    except Exception as e: html+=f"<tr><td colspan=9>Erro: {e}</td></tr>"
+    if filtro_ativo:
+        html+=f"</table><div class='total'>Encontrados: {count_filtrado} de {count} registros</div></body></html>"
+    else:
+        html+=f"</table><div class='total'>Total: {count} kits cadastrados</div></body></html>"
+    return html
 
 @app_flask.route('/exportar')
 def exp(): return send_file(ARQ_INV, as_attachment=True)
 @app_flask.route('/exportar_rar')
 def exprar():
-    zp="fotos.zip"
+    zp="fotos_completo.zip"
     with zipfile.ZipFile(zp,'w') as z:
         if os.path.exists(ARQ_INV): z.write(ARQ_INV)
-        try:
-            with open(ARQ_INV, encoding="utf-8") as f:
-                for r in csv.DictReader(f):
-                    for k in ["foto1","foto2","foto3"]:
-                        p=r.get(k,"")
-                        if p and os.path.exists(p): z.write(p)
-        except: pass
+        for pasta in [PASTA_FOTOS, PASTA_MASCARAS]:
+            for root,_,files in os.walk(pasta):
+                for file in files:
+                    z.write(os.path.join(root,file))
     return send_file(zp, as_attachment=True)
 
 def run_flask():
     app_flask.run(host='0.0.0.0', port=int(os.environ.get("PORT",10000)))
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📸 Sistema Fotos Patrimonio\nEnvie sua CHAPA:")
+    context.user_data.clear()
+    await update.message.reply_text("📸 Sistema Fotos Patrimonio\n\nVamos fazer passo a passo:\n1- Maquina\n2- OTDR\n3- Gerar Mascara\n\nEnvie sua CHAPA:")
     return CHAPA
 
 async def chapa_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chapa=update.message.text.strip().zfill(6)
     dados=buscar_na_base_mestra(chapa)
     if not dados:
-        await update.message.reply_text(f"Chapa {chapa} nao existe")
+        await update.message.reply_text(f"Chapa {chapa} nao existe na base")
         return CHAPA
     cad=buscar_cadastro(chapa)
     if cad and cad.get("telefone"):
         context.user_data.update(cad)
-        kb=[[KeyboardButton("🔧 Maquina de Fusao"), KeyboardButton("📡 OTDR")]]
-        await update.message.reply_text(f"Bem vindo {cad['nome']}! Escolha:", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True))
-        return MENU
+        await update.message.reply_text(f"Bem vindo {cad['nome']}!\n\nPASSO 1/7: Digite PATRIMONIO da MAQUINA DE FUSAO:")
+        return MAQ_PAT
     context.user_data["chapa"]=chapa
     context.user_data["dados_mestra"]=dados
     kb=[[KeyboardButton("📱 Compartilhar telefone", request_contact=True)]]
@@ -134,59 +215,98 @@ async def telefone_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     dados={"chapa": context.user_data["chapa"], "nome": m["nome"], "funcao": m["funcao"], "lider_imediato": m["lider"], "coordenador": m["coord"], "telefone": tel, "id_telegram": str(update.effective_user.id)}
     salvar_cadastro(dados)
     context.user_data.update(dados)
-    kb=[[KeyboardButton("🔧 Maquina de Fusao"), KeyboardButton("📡 OTDR")]]
-    await update.message.reply_text(f"Tel {tel} salvo! Escolha:", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True))
-    return MENU
+    await update.message.reply_text(f"Tel {tel} salvo!\n\nPASSO 1/7: Digite PATRIMONIO da MAQUINA DE FUSAO:")
+    return MAQ_PAT
 
-async def menu_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    t=update.message.text.upper()
-    context.user_data["tipo_item"]="MAQUINA DE FUSAO" if "FUS" in t else "OTDR"
-    await update.message.reply_text(f"Escolheu {context.user_data['tipo_item']}\nDigite o PATRIMONIO:")
-    return PATRIMONIO
-
-async def patrimonio_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    pat=update.message.text.strip().upper()
-    if patrimonio_existe(pat):
-        await update.message.reply_text(f"Pat {pat} ja existe! Digite outro:")
-        return PATRIMONIO
-    context.user_data["patrimonio"]=pat
-    await update.message.reply_text(f"Pat {pat} OK! Envie FOTO 1:")
-    return FOTO1
-
-async def baixar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def baixar(update, context, prefixo):
     ph=update.message.photo[-1]
     file=await context.bot.get_file(ph.file_id)
-    nome=f"{context.user_data['patrimonio']}_{uuid.uuid4().hex[:6]}.jpg"
+    nome=f"{prefixo}_{uuid.uuid4().hex[:6]}.jpg"
     caminho=os.path.join(PASTA_FOTOS, nome)
     await file.download_to_drive(caminho)
     return caminho
 
-async def foto1_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("Envie FOTO!")
-        return FOTO1
-    context.user_data["foto1"]=await baixar(update, context)
-    await update.message.reply_text("Foto1 OK! Envie FOTO 2:")
-    return FOTO2
+async def maq_pat_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pat=update.message.text.strip().upper()
+    if patrimonio_existe(pat):
+        await update.message.reply_text(f"Pat {pat} ja existe! Digite outro da MAQUINA:")
+        return MAQ_PAT
+    context.user_data["pat_maquina"]=pat
+    await update.message.reply_text(f"✅ MAQUINA {pat}\n\nPASSO 2/7: Envie FOTO 1 da MAQUINA:")
+    return MAQ_F1
 
-async def foto2_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("Envie FOTO!")
-        return FOTO2
-    context.user_data["foto2"]=await baixar(update, context)
-    await update.message.reply_text("Foto2 OK! Envie FOTO 3:")
-    return FOTO3
+async def maq_f1_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.photo: return MAQ_F1
+    context.user_data["maq_f1"]=await baixar(update, context, context.user_data["pat_maquina"]+"_MAQ1")
+    await update.message.reply_text("Foto 1 OK!\nPASSO 3/7: Envie FOTO 2 da MAQUINA:")
+    return MAQ_F2
 
-async def foto3_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("Envie FOTO!")
-        return FOTO3
-    context.user_data["foto3"]=await baixar(update, context)
+async def maq_f2_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.photo: return MAQ_F2
+    context.user_data["maq_f2"]=await baixar(update, context, context.user_data["pat_maquina"]+"_MAQ2")
+    await update.message.reply_text("Foto 2 OK!\nPASSO 4/7: Envie FOTO 3 da MAQUINA:")
+    return MAQ_F3
+
+async def maq_f3_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.photo: return MAQ_F3
+    context.user_data["maq_f3"]=await baixar(update, context, context.user_data["pat_maquina"]+"_MAQ3")
+    await update.message.reply_text("✅ MAQUINA COMPLETA!\n\nPASSO 5/7: Agora digite PATRIMONIO do OTDR:")
+    return OTDR_PAT
+
+async def otdr_pat_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pat=update.message.text.strip().upper()
+    if pat==context.user_data.get("pat_maquina"):
+        await update.message.reply_text("OTDR nao pode ser igual MAQUINA! Digite outro:")
+        return OTDR_PAT
+    if patrimonio_existe(pat):
+        await update.message.reply_text(f"Pat {pat} ja existe! Digite outro do OTDR:")
+        return OTDR_PAT
+    context.user_data["pat_otdr"]=pat
+    await update.message.reply_text(f"✅ OTDR {pat}\n\nPASSO 6/7: Envie FOTO 1 do OTDR:")
+    return OTDR_F1
+
+async def otdr_f1_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.photo: return OTDR_F1
+    context.user_data["otdr_f1"]=await baixar(update, context, context.user_data["pat_otdr"]+"_OTDR1")
+    await update.message.reply_text("Foto 1 OTDR OK!\nPASSO 7/7: Envie FOTO 2 do OTDR:")
+    return OTDR_F2
+
+async def otdr_f2_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.photo: return OTDR_F2
+    context.user_data["otdr_f2"]=await baixar(update, context, context.user_data["pat_otdr"]+"_OTDR2")
+    await update.message.reply_text("Foto 2 OTDR OK!\nPASSO 8/7: Envie FOTO 3 do OTDR:")
+    return OTDR_F3
+
+async def otdr_f3_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.photo: return OTDR_F3
+    context.user_data["otdr_f3"]=await baixar(update, context, context.user_data["pat_otdr"]+"_OTDR3")
+    resumo = f"""📋 RESUMO PARA GERAR MASCARA:
+
+🔧 MAQUINA: {context.user_data['pat_maquina']}
+📡 OTDR: {context.user_data['pat_otdr']}
+👤 {context.user_data['chapa']} - {context.user_data['nome']}
+📅 {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}
+
+Fotos: 3 da Maquina + 3 do OTDR OK!
+
+Deseja FINALIZAR?"""
+    kb=[[KeyboardButton("✅ FINALIZAR E GERAR MASCARA")],[KeyboardButton("❌ CANCELAR")]]
+    await update.message.reply_text(resumo, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True))
+    return FINAL
+
+async def final_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if "CANCELAR" in update.message.text.upper():
+        await update.message.reply_text("Cancelado. /start para recomecar")
+        return ConversationHandler.END
+    masc_txt, masc_png, texto_masc = gerar_mascara(context.user_data)
+    data_reg = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     with open(ARQ_INV, "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([datetime.datetime.now().strftime("%d/%m/%Y %H:%M"), context.user_data["chapa"], context.user_data["nome"], context.user_data["funcao"], context.user_data["lider_imediato"], context.user_data["coordenador"], context.user_data["telefone"], context.user_data["tipo_item"], context.user_data["patrimonio"], context.user_data["foto1"], context.user_data["foto2"], context.user_data["foto3"]])
-    kb=[[KeyboardButton("🔧 Maquina de Fusao"), KeyboardButton("📡 OTDR")]]
-    await update.message.reply_text(f"✅ SALVO {context.user_data['patrimonio']}!", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True))
-    return MENU
+        csv.writer(f).writerow([data_reg, context.user_data["chapa"], context.user_data["nome"], context.user_data["funcao"], context.user_data["lider_imediato"], context.user_data["coordenador"], context.user_data["telefone"], "KIT MAQ+OTDR", context.user_data["pat_maquina"], context.user_data["pat_otdr"], context.user_data["maq_f1"], context.user_data["maq_f2"], context.user_data["maq_f3"], context.user_data["otdr_f1"], context.user_data["otdr_f2"], context.user_data["otdr_f3"], masc_png])
+    await update.message.reply_text(f"✅ KIT SALVO COM SUCESSO!\n\n{texto_masc}\n\nMascara gerada!")
+    await context.bot.send_document(chat_id=update.effective_chat.id, document=open(masc_txt, "rb"), filename=os.path.basename(masc_txt))
+    await context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(masc_png, "rb"), caption=f"MASCARA {context.user_data['pat_maquina']} + {context.user_data['pat_otdr']}")
+    await update.message.reply_text("Para cadastrar outro KIT, digite /start", reply_markup=ReplyKeyboardMarkup([[KeyboardButton("/start")]], resize_keyboard=True))
+    return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Cancelado. /start")
@@ -194,33 +314,29 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     threading.Thread(target=run_flask, daemon=True).start()
-    print(">>> INICIANDO BOT...")
-    if not TOKEN:
-        print(">>> SEM TOKEN")
-        while True: time.sleep(10)
-    print(f">>> TOKEN OK TAM {len(TOKEN)} - CRIANDO APP")
-    
-    # FIX PARA PYTHON 3.14
-    try:
-        asyncio.set_event_loop(asyncio.new_event_loop())
+    try: asyncio.set_event_loop(asyncio.new_event_loop())
     except: pass
-
+    print(f">>> TOKEN EXISTE? {bool(TOKEN)}")
     application = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
             CHAPA: [MessageHandler(filters.TEXT & ~filters.COMMAND, chapa_step)],
             TELEFONE: [MessageHandler(filters.ALL, telefone_step)],
-            MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, menu_step)],
-            PATRIMONIO: [MessageHandler(filters.TEXT & ~filters.COMMAND, patrimonio_step)],
-            FOTO1: [MessageHandler(filters.PHOTO, foto1_step)],
-            FOTO2: [MessageHandler(filters.PHOTO, foto2_step)],
-            FOTO3: [MessageHandler(filters.PHOTO, foto3_step)],
+            MAQ_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, maq_pat_step)],
+            MAQ_F1: [MessageHandler(filters.PHOTO, maq_f1_step)],
+            MAQ_F2: [MessageHandler(filters.PHOTO, maq_f2_step)],
+            MAQ_F3: [MessageHandler(filters.PHOTO, maq_f3_step)],
+            OTDR_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, otdr_pat_step)],
+            OTDR_F1: [MessageHandler(filters.PHOTO, otdr_f1_step)],
+            OTDR_F2: [MessageHandler(filters.PHOTO, otdr_f2_step)],
+            OTDR_F3: [MessageHandler(filters.PHOTO, otdr_f3_step)],
+            FINAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, final_step)],
         },
         fallbacks=[CommandHandler("cancel", cancel)]
     )
     application.add_handler(conv)
-    print(">>> BOT FOTOS ON - PRONTO PRA RECEBER /start")
+    print(">>> BOT FOTOS ON - MODO MASCARA + FILTRO CHAPA PRONTO")
     application.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__":
