@@ -79,7 +79,6 @@ def chapa_ja_cadastrou(chapa):
     except: pass
     return False, None
 
-# ===== MASCARA ESTILO FOTO - PATRIMONIO NA FRENTE + DATA PEQUENA ULTIMA LINHA =====
 def gerar_mascara(dados):
     data_hora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     texto = f"MASCARA {dados['pat_maquina']} | {dados['pat_otdr']} | CHAPA {dados['chapa']} | {data_hora}"
@@ -90,13 +89,11 @@ def gerar_mascara(dados):
         caminho_png = os.path.join(PASTA_MASCARAS, f"{nome_base}.png")
         with open(caminho_txt, "w", encoding="utf-8") as f: 
             f.write(f"MASCARA - PATRIMONIO\nMAQUINA FUSAO: {dados['pat_maquina']}\nOTDR: {dados['pat_otdr']}\nCHAPA: {dados['chapa']}\nCOLABORADOR: {dados['nome']}\nTEL: {dados['telefone']}\nFUNCAO: {dados['funcao']}\nSUPERVISOR/LIDER: {dados['lider_imediato']}\nCOORDENADOR: {dados.get('coordenador','')}\nDATA: {data_hora}")
-
         W, H = 850, 520
         BG = (238,238,238)
         img = Image.new('RGB', (W, H), BG)
         draw = ImageDraw.Draw(img)
         font = ImageFont.load_default()
-
         def bold(x,y,t,c, sz=20):
             try: f = ImageFont.truetype("DejaVuSans-Bold.ttf", sz)
             except: f = font
@@ -109,56 +106,32 @@ def gerar_mascara(dados):
             try: f = ImageFont.truetype("DejaVuSans.ttf", sz)
             except: f = font
             draw.text((x,y),t,fill=c,font=f)
-
         AZUL_ESC = (15,58,110)
-
-        # Cartao branco
         draw.rounded_rectangle([(30,50),(820,505)], radius=28, fill=(255,255,255))
-
-        # Pill azul topo
         draw.rounded_rectangle([(155,12),(695,78)], radius=30, fill=(15,76,143))
         bold(215,26,"MASCARA - PATRIMONIO",(255,255,255),22)
-
-        # === PATRIMONIOS NA FRENTE ===
         bold(70,105,"MAQUINA FUSAO:",AZUL_ESC,18)
         normal(240,108,f"{dados['pat_maquina']}",(15,35,70),20)
-
         bold(470,105,"OTDR:",AZUL_ESC,18)
         normal(540,108,f"{dados['pat_otdr']}",(15,35,70),20)
-
-        # Linha divisoria
         draw.line([(65,145),(785,145)], fill=(230,230,230), width=2)
-
-        # CHAPA / COLABORADOR / TEL
         bold(70,170,"CHAPA:",AZUL_ESC,16)
         normal(70,195,f"{dados['chapa']}",(15,35,70),16)
-
         bold(215,170,"COLABORADOR:",AZUL_ESC,16)
         normal(215,195,f"{dados['nome'][:20]}",(15,35,70),14)
-
         bold(545,170,"TEL:",AZUL_ESC,16)
         normal(545,195,f"{dados['telefone']}",(15,35,70),14)
-
-        # FUNCAO
         bold(290,255,"FUNCAO:",AZUL_ESC,18)
         normal(385,257,f"{dados['funcao'][:18]}",(15,35,70),16)
-
-        # Barra inferior azul claro
         draw.rounded_rectangle([(50,310),(800,455)], radius=22, fill=(185,211,240))
         draw.rectangle([(50,380),(800,455)], fill=(185,211,240))
-
         bold(80,325,"SUPERVISOR/LIDER:",AZUL_ESC,15)
         normal(80,350,f"{dados['lider_imediato'][:22]}",(15,35,70),14)
-
         draw.line([(395,320),(395,385)], fill=(140,180,220), width=1)
-
         bold(415,325,"COORDENADOR:",AZUL_ESC,15)
         normal(415,350,f"{dados.get('coordenador','')[:22]}",(15,35,70),14)
-
-        # === DATA BEM PEQUENA NA ULTIMA LINHA ===
         small(65,465,f"DATA: {data_hora}",(90,90,90),11)
         small(600,465,f"ID: {nome_base[:16].upper()}",(90,90,90),10)
-
         img.save(caminho_png, quality=95, optimize=True)
         return caminho_txt, caminho_png, texto
     except Exception as e:
@@ -185,7 +158,7 @@ def apagar_tudo_da_chapa(chapa):
 
 app_flask = Flask(__name__)
 @app_flask.route('/')
-def home(): return "BOT ON - MASCARA FOTO PATRIMONIO NA FRENTE"
+def home(): return "BOT ON - MASCARA TAM FOTO"
 @app_flask.route('/fotos/<path:filename>')
 def foto(filename): return send_from_directory(PASTA_FOTOS, filename)
 @app_flask.route('/mascaras/<path:filename>')
@@ -214,30 +187,42 @@ def apagar_chapa_page():
         if chapa: apagar_tudo_da_chapa(chapa)
         return f"<h2>Chapa {chapa} apagada!</h2><a href=/base>Voltar</a>"
     return """<form method='POST'>CHAPA: <input name='chapa' required><button>APAGAR</button></form>"""
+
 @app_flask.route('/base')
 def base():
     chapa_filtro = request.args.get('chapa','').strip()
-    html = f"""<html><head><meta charset='utf-8'><title>BASE - MASCARA FOTO</title>
-    <style>body{{font-family:Arial;padding:20px;background:#f5f6f8}}table{{width:100%;border-collapse:collapse;background:white}}th,td{{padding:8px;border:1px solid #ddd;text-align:center;font-size:12px}}th{{background:#0F4C8F;color:white}}
-    .foto-padrao{{width:50px;height:50px;object-fit:cover;border-radius:4px;border:1px solid #ccc}}.mascara-preview{{width:160px;height:95px;object-fit:contain;border-radius:10px;border:2px solid #0F4C8F;cursor:pointer;background:white}}.mascara-preview:hover{{transform:scale(2.5);z-index:100;position:relative}} .btn-apagar{{background:#dc3545;color:white;padding:5px 8px;border-radius:4px;text-decoration:none}}</style></head><body>
-    <h2>BASE - MASCARA FOTO - PATRIMONIO NA FRENTE</h2>
+    html = f"""
+    <html><head><meta charset='utf-8'><title>BASE - MASCARA TAM FOTO</title>
+    <style>
+    body{{font-family:Arial;padding:20px;background:#f5f6f8}}
+    table{{width:100%;border-collapse:collapse;background:white}}
+    th,td{{padding:8px;border:1px solid #ddd;text-align:center;font-size:12px;vertical-align:middle}}
+    th{{background:#0F4C8F;color:white}}
+    .foto-padrao{{width:50px;height:50px;object-fit:cover;border-radius:4px;border:1px solid #ccc;margin:2px;cursor:pointer}}
+    .foto-padrao:hover{{transform:scale(4);z-index:100;position:relative; box-shadow:0 0 10px black}}
+    /* MASCARA AGORA DO TAMANHO DA FOTO 50x50 */
+    .mascara-preview{{width:50px;height:50px;object-fit:cover;border-radius:4px;border:1px solid #0F4C8F;margin:2px;cursor:pointer;background:white}}
+    .mascara-preview:hover{{transform:scale(6);z-index:100;position:relative; box-shadow:0 0 15px black}}
+    .btn-apagar{{background:#dc3545;color:white;padding:5px 8px;border-radius:4px;text-decoration:none;font-size:11px}}
+    </style></head><body>
+    <h2>BASE - MASCARA DO TAMANHO DAS FOTOS</h2>
     <form method='GET'>CHAPA: <input name='chapa' value='{chapa_filtro}'><button>BUSCAR</button> <a href='/base'><button type='button'>LIMPAR</button></a> <a href='/apagar_chapa'><button type='button' style='background:orange;color:white'>APAGAR CHAPA</button></a></form><br>
-    <table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA</th><th>ACAO</th></tr>"""
+    <table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA</th><th>ACAO</th></tr>
+    """
     try:
         with open(ARQ_INV, encoding="utf-8") as f:
             reader = list(csv.DictReader(f))
             if chapa_filtro: reader = [r for r in reader if chapa_filtro.zfill(6) in str(r.get('chapa','')).zfill(6)]
             for r in reader:
-                f_maq = "".join([f"<a href=/{r.get(k,'')} target=_blank><img class='foto-padrao' src=/{r.get(k,'')}></a>" for k in ["foto_maquina1","foto_maquina2","foto_maquina3"] if r.get(k) and os.path.exists(r.get(k,''))])
-                f_otdr = "".join([f"<a href=/{r.get(k,'')} target=_blank><img class='foto-padrao' src=/{r.get(k,'')}></a>" for k in ["foto_otdr1","foto_otdr2","foto_otdr3"] if r.get(k) and os.path.exists(r.get(k,''))])
-                masc = f"<a href=/{r.get('mascara_arquivo','')} target=_blank><img class='mascara-preview' src=/{r.get('mascara_arquivo','')}></a>" if r.get('mascara_arquivo') and os.path.exists(r.get('mascara_arquivo','')) else "-"
+                f_maq = "".join([f"<a href=/{r.get(k,'')} target=_blank><img class='foto-padrao' src=/{r.get(k,'')} title='{k}'></a>" for k in ["foto_maquina1","foto_maquina2","foto_maquina3"] if r.get(k) and os.path.exists(r.get(k,''))])
+                f_otdr = "".join([f"<a href=/{r.get(k,'')} target=_blank><img class='foto-padrao' src=/{r.get(k,'')} title='{k}'></a>" for k in ["foto_otdr1","foto_otdr2","foto_otdr3"] if r.get(k) and os.path.exists(r.get(k,''))])
+                masc = f"<a href=/{r.get('mascara_arquivo','')} target=_blank><img class='mascara-preview' src=/{r.get('mascara_arquivo','')} title='Mascara'></a>" if r.get('mascara_arquivo') and os.path.exists(r.get('mascara_arquivo','')) else "-"
                 html+=f"<tr><td>{r.get('data_registro','')}</td><td><b>{r.get('chapa','')}</b></td><td>{r.get('nome','')[:15]}</td><td>{r.get('patrimonio_maquina','')}</td><td>{r.get('patrimonio_otdr','')}</td><td>{f_maq or '-'}</td><td>{f_otdr or '-'}</td><td>{masc}</td><td><a class='btn-apagar' href='/apagar/{r.get('chapa','')}'>APAGAR</a></td></tr>"
     except Exception as e: html+=f"<tr><td colspan=9>Erro: {e}</td></tr>"
     html+="</table><br><a href='/exportar_zip' style='background:green;color:white;padding:10px;text-decoration:none;border-radius:5px'>📦 Exportar ZIP</a></body></html>"
     return html
 
 def run_flask(): app_flask.run(host='0.0.0.0', port=int(os.environ.get("PORT",10000)))
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("📸 Sistema Fotos Patrimonio\nEnvie sua CHAPA:")
