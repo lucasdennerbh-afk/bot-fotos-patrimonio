@@ -69,85 +69,43 @@ def patrimonio_existe(p):
     except: pass
     return False
 
-# ===== MASCARA ESTILOSA - ESTILO QUE VOCE ESCOLHEU =====
+# ===== MASCARA PRIMEIRA - ORIGINAL SIMPLES =====
 def gerar_mascara(dados):
     data_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    
     texto = f"""MASCARA - PATRIMONIO
-PATRIMONIO MAQUINA FUSAO: {dados['pat_maquina']}
-PATRIMONIO OTDR: {dados['pat_otdr']}
+MAQUINA FUSAO: {dados['pat_maquina']}
+OTDR: {dados['pat_otdr']}
 DATA: {data_str}
 CHAPA: {dados['chapa']} | COLABORADOR: {dados['nome']} | TEL: {dados['telefone']}
 FUNCAO: {dados['funcao']}
-SUPERVISOR/LIDER: {dados['lider_imediato']} | COORDENADOR: {dados.get('coordenador','')}
+SUPERVISOR/LIDER: {dados['lider_imediato']} | COORD: {dados.get('coordenador','')}
 """
     nome_txt = f"{dados['pat_maquina']}_{dados['pat_otdr']}_{uuid.uuid4().hex[:4]}.txt"
     caminho_txt = os.path.join(PASTA_MASCARAS, nome_txt)
     with open(caminho_txt, "w", encoding="utf-8") as f: f.write(texto)
 
-    W, H = 1050, 650
-    img = Image.new('RGB', (W, H), color=(235,238,242))
+    W, H = 1050, 350
+    img = Image.new('RGB', (W, H), color='white')
     draw = ImageDraw.Draw(img)
-    
     try:
-        f_header = ImageFont.truetype("arialbd.ttf", 34)
-        f_label = ImageFont.truetype("arialbd.ttf", 20)
-        f_value = ImageFont.truetype("arialbd.ttf", 26)
-        f_value2 = ImageFont.truetype("arialbd.ttf", 20)
-        f_small = ImageFont.truetype("arial.ttf", 18)
-        f_small_b = ImageFont.truetype("arialbd.ttf", 19)
+        f_b = ImageFont.truetype("arialbd.ttf", 22)
+        f_n = ImageFont.truetype("arial.ttf", 20)
     except:
-        f_header = f_label = f_value = f_value2 = f_small = f_small_b = ImageFont.load_default()
-
-    def rounded_rect(x0,y0,x1,y1,r,fill):
-        draw.rounded_rectangle([(x0,y0),(x1,y1)], radius=r, fill=fill)
+        f_b = f_n = ImageFont.load_default()
     
-    rounded_rect(20, 30, W-20, H-20, 35, fill="white")
+    draw.rectangle([(0,0,W,50)], fill=(15,48,87))
+    draw.text((20,12), f"MASCARA - PATRIMONIO | {data_str}", fill="white", font=f_b)
     
-    AZUL_ESCURO = (18, 65, 128)
-    AZUL_CLARO = (185, 212, 240)
-    AZUL_MEDIO = (24, 75, 142)
+    draw.text((20,70), f"MAQUINA: {dados['pat_maquina']}  |  OTDR: {dados['pat_otdr']}", fill=(0,0,0), font=f_b)
+    draw.text((20,110), f"CHAPA: {dados['chapa']} | COLABORADOR: {dados['nome']} | TEL: {dados['telefone']}", fill=(0,0,0), font=f_n)
+    draw.text((20,145), f"FUNCAO: {dados['funcao']}", fill=(0,0,0), font=f_n)
+    draw.text((20,185), f"SUPERVISOR/LIDER: {dados['lider_imediato']} | COORDENADOR: {dados.get('coordenador','')}", fill=(0,0,0), font=f_n)
     
-    rounded_rect(150, 10, W-150, 90, 30, fill=AZUL_ESCURO)
-    draw.text((W//2-210, 28), "MASCARA - PATRIMONIO", fill="white", font=f_header)
-
-    draw.line([(50, 320, W-50, 320)], fill=(220,220,220), width=2)
-
-    draw.text((60, 120), "MAQUINA FUSAO:", fill=AZUL_MEDIO, font=f_label)
-    draw.text((60, 150), f"{dados['pat_maquina']}", fill=(15,30,60), font=f_value)
-    
-    draw.text((60, 200), f"OTDR: {dados['pat_otdr']}", fill=AZUL_MEDIO, font=f_label)
-
-    draw.text((600, 130), "DATA:", fill=AZUL_MEDIO, font=f_label)
-    draw.text((600, 160), f"{data_str}", fill=(15,30,60), font=f_value)
-
-    y1 = 360
-    draw.text((60, y1), "CHAPA:", fill=AZUL_MEDIO, font=f_label)
-    draw.text((60, y1+28), f"{dados['chapa']}", fill=(15,30,60), font=f_value)
-
-    draw.text((240, y1), "COLABORADOR:", fill=AZUL_MEDIO, font=f_label)
-    draw.text((240, y1+28), f"{dados['nome'][:28]}", fill=(15,30,60), font=f_value2)
-
-    draw.text((700, y1), "TEL:", fill=AZUL_MEDIO, font=f_label)
-    draw.text((700, y1+28), f"{dados['telefone']}", fill=(15,30,60), font=f_value)
-
-    y2 = 450
-    draw.text((W//2-150, y2), f"FUNCAO: {dados['funcao']}", fill=AZUL_MEDIO, font=f_label)
-
-    rounded_rect(45, 500, W-45, H-40, 25, fill=AZUL_CLARO)
-    
-    draw.text((75, 520), "SUPERVISOR/LIDER:", fill=AZUL_ESCURO, font=f_small)
-    draw.text((75, 545), f"{dados['lider_imediato'][:22]}", fill=(15,30,60), font=f_small_b)
-
-    draw.text((550, 520), "COORDENADOR:", fill=AZUL_ESCURO, font=f_small)
-    draw.text((550, 545), f"{dados.get('coordenador','')[:22]}", fill=(15,30,60), font=f_small_b)
-
-    draw.line([(480, 515, 480, 580)], fill=(150,180,210), width=2)
+    draw.line([(0,250,W,250)], fill=(200,200,200), width=2)
 
     nome_png = nome_txt.replace(".txt",".png")
     caminho_png = os.path.join(PASTA_MASCARAS, nome_png)
     img.save(caminho_png, quality=95)
-    
     return caminho_txt, caminho_png, texto
 
 def apagar_tudo_da_chapa(chapa):
@@ -184,7 +142,7 @@ def apagar_tudo_da_chapa(chapa):
 
 app_flask = Flask(__name__)
 @app_flask.route('/')
-def home(): return "BOT FOTOS ON - ESTILOSO"
+def home(): return "BOT FOTOS ON - PRIMEIRO MODELO"
 @app_flask.route('/fotos/<path:filename>')
 def foto(filename): return send_from_directory(PASTA_FOTOS, filename)
 @app_flask.route('/mascaras/<path:filename>')
@@ -200,7 +158,7 @@ def apagar_chapa_page():
         chapa = request.form.get('chapa','').strip().zfill(6)
         apagados = apagar_tudo_da_chapa(chapa)
         return f"<h2>Chapa {chapa} apagada</h2><a href=/base>Voltar</a>"
-    return """<html><head><meta charset='utf-8'><title>Apagar</title></head><body><form method='POST'>Chapa: <input name='chapa' required><button>APAGAR</button></form><a href=/base>Voltar</a></body></html>"""
+    return """<html><head><meta charset='utf-8'></head><body><form method='POST'>CHAPA: <input name='chapa' required><button>APAGAR</button></form><a href=/base>Voltar</a></body></html>"""
 @app_flask.route('/atualizar_base', methods=['GET','POST'])
 def atualizar_base():
     if request.method == 'POST':
@@ -229,7 +187,7 @@ def run_flask(): app_flask.run(host='0.0.0.0', port=int(os.environ.get("PORT",10
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text("📸 Sistema Fotos Patrimonio - ESTILOSO\nEnvie sua CHAPA:")
+    await update.message.reply_text("📸 Sistema Fotos Patrimonio\nEnvie sua CHAPA:")
     return CHAPA
 async def chapa_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chapa=update.message.text.strip().zfill(6)
@@ -310,7 +268,7 @@ def main():
     application = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(entry_points=[CommandHandler("start", start)], states={CHAPA: [MessageHandler(filters.TEXT & ~filters.COMMAND, chapa_step)], TELEFONE: [MessageHandler(filters.ALL, telefone_step)], MAQ_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, maq_pat_step)], MAQ_F1: [MessageHandler(filters.PHOTO, maq_f1_step)], MAQ_F2: [MessageHandler(filters.PHOTO, maq_f2_step)], MAQ_F3: [MessageHandler(filters.PHOTO, maq_f3_step)], OTDR_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, otdr_pat_step)], OTDR_F1: [MessageHandler(filters.PHOTO, otdr_f1_step)], OTDR_F2: [MessageHandler(filters.PHOTO, otdr_f2_step)], OTDR_F3: [MessageHandler(filters.PHOTO, otdr_f3_step)], FINAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, final_step)]}, fallbacks=[CommandHandler("cancel", cancel)])
     application.add_handler(conv)
-    print(">>> BOT FOTOS ON - ESTILO ESTILOSO")
+    print(">>> BOT FOTOS ON - PRIMEIRO")
     application.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__": main()
