@@ -82,62 +82,78 @@ def chapa_ja_cadastrou(chapa):
     except: pass
     return False, None
 
+# ===== MASCARA ESTILOSA MENOR 950x480 IGUAL PREVIEW =====
 def gerar_mascara(dados):
-    data_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    texto = f"""MASCARA - PATRIMONIO - {data_str}
-MAQUINA FUSAO: {dados['pat_maquina']} | OTDR: {dados['pat_otdr']}
-CHAPA: {dados['chapa']} | COLABORADOR: {dados['nome']} | TEL: {dados['telefone']}
-FUNCAO: {dados['funcao']}
-SUPERVISOR: {dados['lider_imediato']} | COORD: {dados.get('coordenador','')}
-"""
+    data_str = datetime.datetime.now().strftime("%d/%m/%Y")
+    data_hora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    texto = f"MASCARA {dados['pat_maquina']} + {dados['pat_otdr']} | CHAPA {dados['chapa']} | {dados['nome']} | {data_hora}"
     try:
         os.makedirs(PASTA_MASCARAS, exist_ok=True)
         nome_base = f"{dados['pat_maquina']}_{dados['pat_otdr']}_{uuid.uuid4().hex[:4]}"
         caminho_txt = os.path.join(PASTA_MASCARAS, f"{nome_base}.txt")
         caminho_png = os.path.join(PASTA_MASCARAS, f"{nome_base}.png")
-        with open(caminho_txt, "w", encoding="utf-8") as f: f.write(texto)
-        W, H = 1200, 700
-        img = Image.new('RGB', (W, H), color=(245,247,250))
+        with open(caminho_txt, "w", encoding="utf-8") as f: 
+            f.write(f"MASCARA PATRIMONIO\nMAQUINA:{dados['pat_maquina']} OTDR:{dados['pat_otdr']}\nCHAPA:{dados['chapa']} NOME:{dados['nome']} TEL:{dados['telefone']}\nLIDER:{dados['lider_imediato']} COORD:{dados.get('coordenador','')}\nDATA:{data_hora}\nID:{nome_base}")
+
+        W, H = 950, 480
+        img = Image.new('RGB', (W, H), (255,255,255))
         draw = ImageDraw.Draw(img)
         font = ImageFont.load_default()
-        def text_bold(x,y,txt,color):
-            draw.text((x,y),txt,fill=color,font=font)
-            draw.text((x+1,y),txt,fill=color,font=font)
-        draw.rounded_rectangle([(0,0),(W,90)], radius=0, fill=(11,42,74))
-        text_bold(30,15,"MASCARA DE PATRIMONIO",(255,255,255))
-        draw.text((30,45),f"Gerado em {data_str} | Sistema Fotos Patrimonio",fill=(180,200,220),font=font)
-        draw.rounded_rectangle([(W-220,15),(W-20,75)], radius=12, fill=(255,255,255))
-        draw.text((W-200,35),"KIT FUSAO+OTDR",fill=(11,42,74),font=font)
-        draw.rounded_rectangle([(20,110),(580,280)], radius=18, fill=(255,255,255), outline=(46,125,50), width=3)
-        draw.rounded_rectangle([(20,110),(580,150)], radius=18, fill=(232,245,233))
-        draw.rectangle([(20,135),(580,152)], fill=(232,245,233))
-        draw.text((35,118),"MAQUINA DE FUSAO",fill=(46,125,50),font=font)
-        text_bold(35,170,f"{dados['pat_maquina']}",(20,60,20))
-        draw.text((35,210),"Patrimonio identificado",fill=(100,140,100),font=font)
-        draw.rounded_rectangle([(620,110),(1180,280)], radius=18, fill=(255,255,255), outline=(239,108,0), width=3)
-        draw.rounded_rectangle([(620,110),(1180,150)], radius=18, fill=(255,243,224))
-        draw.rectangle([(620,135),(1180,152)], fill=(255,243,224))
-        draw.text((635,118),"OTDR - REFLETOMETRO",fill=(239,108,0),font=font)
-        text_bold(635,170,f"{dados['pat_otdr']}",(80,40,0))
-        draw.text((635,210),"Patrimonio identificado",fill=(180,130,80),font=font)
-        draw.rounded_rectangle([(20,300),(1180,620)], radius=18, fill=(255,255,255), outline=(220,225,230), width=2)
-        draw.rounded_rectangle([(35,315),(200,355)], radius=20, fill=(255,243,205), outline=(255,193,7), width=2)
-        draw.text((50,325),f"CHAPA: {dados['chapa']}",fill=(120,80,0),font=font)
-        text_bold(220,320,f"{dados['nome'][:45]}",(15,30,60))
-        draw.text((220,345),f"TEL: {dados['telefone']} | FUNCAO: {dados['funcao']}",fill=(80,90,110),font=font)
-        draw.rounded_rectangle([(35,380),(570,450)], radius=12, fill=(227,242,253), outline=(144,202,249))
-        draw.text((45,388),"SUPERVISOR / LIDER",fill=(13,71,161),font=font)
-        text_bold(45,410,f"{dados['lider_imediato'][:35]}",(10,30,70))
-        draw.rounded_rectangle([(590,380),(1165,450)], radius=12, fill=(243,229,245), outline=(206,147,216))
-        draw.text((600,388),"COORDENADOR",fill=(74,20,140),font=font)
-        text_bold(600,410,f"{dados.get('coordenador','')[:35]}",(50,20,80))
-        draw.line([(35,475),(1165,475)], fill=(230,230,230), width=2)
-        draw.text((35,490),f"CHAPA: {dados['chapa']} | COLABORADOR CADASTRADO",fill=(100,100,100),font=font)
-        draw.text((35,515),f"Comprova posse do KIT: {dados['pat_maquina']} + {dados['pat_otdr']}",fill=(100,100,100),font=font)
-        draw.rounded_rectangle([(0,640),(W,H)], radius=0, fill=(11,42,74))
-        draw.text((30,660),f"Documento automatico | {data_str}",fill=(180,200,220),font=font)
-        draw.text((W-250,660),f"ID: {nome_base[:12].upper()}",fill=(255,255,255),font=font)
-        img.save(caminho_png, quality=95)
+        def bold(x,y,t,c):
+            draw.text((x,y),t,fill=c,font=font)
+            draw.text((x+1,y),t,fill=c,font=font)
+
+        # Header preto premium
+        draw.rounded_rectangle([(0,0),(W,65)], radius=18, fill=(15,23,42))
+        draw.rectangle([(0,40),(W,65)], fill=(15,23,42))
+        draw.rectangle([(0,62),(W,67)], fill=(56,189,248)) # linha neon
+        bold(22,15,"PATRIMONIO - KIT FUSAO + OTDR",(255,255,255))
+        draw.text((W-170,22), f"DATA: {data_str}", fill=(255,255,255), font=font)
+
+        # MAQUINA azul claro
+        draw.rounded_rectangle([(18,80),(462,255)], radius=18, fill=(219,234,254), outline=(191,219,254), width=1)
+        draw.text((30,95),"MAQUINA FUSAO", fill=(37,99,235), font=font)
+        bold(30,108,"MAQUINA FUSAO",(37,99,235))
+        draw.text((30,135),"PATRIMONIO:", fill=(100,116,139), font=font)
+        bold(30,155, f"{dados['pat_maquina'][:18]}", (15,23,42))
+        draw.text((30,190),"• ATIVO / OPERACIONAL", fill=(22,101,52), font=font)
+
+        # OTDR laranja claro
+        draw.rounded_rectangle([(488,80),(932,255)], radius=18, fill=(255,237,213), outline=(254,215,170), width=1)
+        draw.text((500,95),"OTDR", fill=(234,88,12), font=font)
+        bold(500,108,"OTDR",(234,88,12))
+        draw.text((500,135),"PATRIMONIO:", fill=(100,116,139), font=font)
+        bold(500,155, f"{dados['pat_otdr'][:18]}", (15,23,42))
+        draw.text((500,190),"• ATIVO / OPERACIONAL", fill=(22,101,52), font=font)
+
+        # Pill preta amarela CHAPA
+        draw.rounded_rectangle([(80,270),(870,315)], radius=22, fill=(0,0,0))
+        txt_pill = f"CHAPA {dados['chapa']}  |  {dados['nome'][:25]}  |  {dados['funcao'][:15]} |  {dados['telefone']}"
+        draw.text((110,283), txt_pill, fill=(250,204,21), font=font)
+        bold(110,283, txt_pill, (250,204,21))
+
+        # LIDER e COORD barras cinza
+        draw.rounded_rectangle([(20,330),(700,363)], radius=15, fill=(241,245,249), outline=(203,213,225))
+        draw.text((30,338), f"LIDER: {dados['lider_imediato'][:35]}", fill=(71,85,105), font=font)
+        draw.rounded_rectangle([(20,372),(700,405)], radius=15, fill=(241,245,249), outline=(203,213,225))
+        draw.text((30,380), f"COORD: {dados.get('coordenador','')[:35]}", fill=(71,85,105), font=font)
+
+        # Footer preto com QR
+        draw.rounded_rectangle([(0,415),(W,H)], radius=18, fill=(15,23,42))
+        draw.rectangle([(0,415),(W,435)], fill=(15,23,42))
+        draw.text((20,430), f"ID: {nome_base.upper()} - TELECOM - CONTROLE DE ATIVOS", fill=(200,200,200), font=font)
+        # QR fake estiloso
+        qr_x, qr_y = W-90, 425
+        draw.rectangle([(qr_x-5,qr_y-5),(qr_x+65,qr_y+65)], fill=(255,255,255))
+        for i in range(5):
+            for j in range(5):
+                if (i+j)%2==0 or (i==0 and j==0) or (i==4):
+                    c = (0,0,0) if (i+j)%3==0 else (56,189,248)
+                    draw.rectangle([qr_x+i*12, qr_y+j*12, qr_x+i*12+8, qr_y+j*12+8], fill=c)
+        draw.text((qr_x-95,445),"SCANEIE PARA", fill=(200,200,200), font=font)
+        draw.text((qr_x-95,458),"VER REGISTRO", fill=(200,200,200), font=font)
+
+        img.save(caminho_png, quality=95, optimize=True)
         return caminho_txt, caminho_png, texto
     except Exception as e:
         print(f"ERRO MASCARA: {e}")
@@ -163,7 +179,7 @@ def apagar_tudo_da_chapa(chapa):
 
 app_flask = Flask(__name__)
 @app_flask.route('/')
-def home(): return "BOT ON - TRAVA 1 CHAPA + MASCARA COLORIDA"
+def home(): return "BOT ON - MASCARA ESTILOSA MENOR + TRAVA"
 @app_flask.route('/fotos/<path:filename>')
 def foto(filename): return send_from_directory(PASTA_FOTOS, filename)
 @app_flask.route('/mascaras/<path:filename>')
@@ -203,26 +219,26 @@ def apagar_chapa_page():
     if request.method == 'POST':
         chapa = request.form.get('chapa','').strip()
         if chapa: apagar_tudo_da_chapa(chapa)
-        return f"<h2>Chapa {chapa} apagada! Agora pode cadastrar de novo.</h2><a href=/base>Voltar</a>"
+        return f"<h2>Chapa {chapa} apagada! Pode cadastrar de novo.</h2><a href=/base>Voltar</a>"
     return """<html><head><meta charset='utf-8'></head><body><h2>APAGAR POR CHAPA</h2><form method='POST'>CHAPA: <input name='chapa' required><button>APAGAR TUDO</button></form><br><a href=/base>Voltar</a></body></html>"""
 @app_flask.route('/base')
 def base():
     chapa_filtro = request.args.get('chapa','').strip()
     html = f"""
-    <html><head><meta charset='utf-8'><title>BASE FOTOS - ESTILOSA</title>
+    <html><head><meta charset='utf-8'><title>BASE FOTOS - ESTILOSA MENOR</title>
     <style>
     body{{font-family:Arial;padding:20px; background:#f5f6f8}}
     table{{width:100%;border-collapse:collapse; background:white}}
     th,td{{padding:10px 8px;border:1px solid #ddd; text-align:center; font-size:13px}}
     th{{background:#0F3057;color:white}}
-    .foto-padrao{{width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #ccc;margin:2px}}
-    .foto-padrao:hover{{transform:scale(3);z-index:100;position:relative}}
-    .mascara-preview{{width:130px;height:75px;object-fit:cover;border-radius:8px;border:2px solid #0F3057; cursor:pointer}}
-    .mascara-preview:hover{{transform:scale(2.5);z-index:100;position:relative; box-shadow:0 0 15px black}}
+    .foto-padrao{{width:55px;height:55px;object-fit:cover;border-radius:6px;border:1px solid #ccc;margin:2px}}
+    .foto-padrao:hover{{transform:scale(3.5);z-index:100;position:relative}}
+    .mascara-preview{{width:160px;height:80px;object-fit:cover;border-radius:10px;border:2px solid #0F172A; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.15)}}
+    .mascara-preview:hover{{transform:scale(2.2);z-index:100;position:relative; box-shadow:0 0 20px black}}
     .btn-apagar{{background:#dc3545;color:white;padding:6px 10px;border-radius:5px;text-decoration:none;font-weight:bold}}
     input{{padding:6px}} button{{padding:6px 12px; cursor:pointer}}
     </style></head><body>
-    <h2>BASE FOTOS - ESTILOSA - TRAVA 1 POR CHAPA</h2>
+    <h2>BASE FOTOS - MASCARA ESTILOSA MENOR - TRAVA 1 POR CHAPA</h2>
     <form method='GET' style='margin-bottom:15px'>
         CHAPA: <input name='chapa' value='{chapa_filtro}' placeholder='Digite a chapa'>
         <button type='submit'>BUSCAR</button>
@@ -230,7 +246,7 @@ def base():
         <a href='/apagar_chapa' style='margin-left:20px'><button type='button' style='background:#ff9800;color:white'>APAGAR POR CHAPA</button></a>
         <a href='/ver_func' style='margin-left:10px'><button type='button'>VER FUNCIONARIOS</button></a>
     </form>
-    <table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>TEL</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA COLORIDA</th><th>AÇÃO</th></tr>
+    <table><tr><th>DATA</th><th>CHAPA</th><th>NOME</th><th>TEL</th><th>MAQ</th><th>OTDR</th><th>FOTOS MAQ</th><th>FOTOS OTDR</th><th>MASCARA ESTILOSA</th><th>AÇÃO</th></tr>
     """
     try:
         with open(ARQ_INV, encoding="utf-8") as f:
@@ -261,23 +277,12 @@ async def chapa_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not dados: 
         await update.message.reply_text(f"❌ Chapa {chapa} nao existe na base")
         return CHAPA
-    
-    # TRAVA 1 CADASTRO POR CHAPA
     ja_cad, registro = chapa_ja_cadastrou(chapa)
     if ja_cad:
         await update.message.reply_text(
-            f"⛔ CHAPA {chapa} JA FEZ CADASTRO!\n\n"
-            f"MAQUINA: {registro.get('patrimonio_maquina','')}\n"
-            f"OTDR: {registro.get('patrimonio_otdr','')}\n"
-            f"DATA: {registro.get('data_registro','')}\n\n"
-            f"Para cadastrar novamente:\n"
-            f"1 - Acesse /base\n"
-            f"2 - Busque CHAPA {chapa}\n"
-            f"3 - Clique APAGAR\n"
-            f"4 - Digite /start"
+            f"⛔ CHAPA {chapa} JA CADASTRADA!\nMAQUINA: {registro.get('patrimonio_maquina','')}\nOTDR: {registro.get('patrimonio_otdr','')}\nDATA: {registro.get('data_registro','')}\n\nPara novo cadastro: /base > BUSCAR {chapa} > APAGAR > /start"
         )
         return ConversationHandler.END
-
     cad=buscar_cadastro(chapa)
     if cad and cad.get("telefone"):
         context.user_data.update(cad)
@@ -338,7 +343,7 @@ async def final_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "CANCELAR" in update.message.text.upper():
         await update.message.reply_text("Cancelado. /start"); return ConversationHandler.END
     try:
-        await update.message.reply_text("⏳ Gerando mascara colorida...")
+        await update.message.reply_text("⏳ Gerando mascara estilosa...")
         masc_txt, masc_png, texto_masc = gerar_mascara(context.user_data)
         data_reg = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
         with open(ARQ_INV, "a", newline="", encoding="utf-8") as f:
@@ -347,7 +352,7 @@ async def final_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(masc_txt):
             with open(masc_txt, "rb") as doc: await context.bot.send_document(chat_id=update.effective_chat.id, document=doc, filename=os.path.basename(masc_txt))
         if masc_png and os.path.exists(masc_png):
-            with open(masc_png, "rb") as photo: await context.bot.send_photo(chat_id=update.effective_chat.id, photo=photo, caption=f"🎨 MASCARA COLORIDA {context.user_data['pat_maquina']} + {context.user_data['pat_otdr']}")
+            with open(masc_png, "rb") as photo: await context.bot.send_photo(chat_id=update.effective_chat.id, photo=photo, caption=f"🎨 MASCARA ESTILOSA {context.user_data['pat_maquina']} + {context.user_data['pat_otdr']}")
         await update.message.reply_text("Para novo KIT /start")
     except Exception as e:
         print(f"ERRO FINAL: {e}")
@@ -363,7 +368,7 @@ def main():
     application = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(entry_points=[CommandHandler("start", start)], states={CHAPA: [MessageHandler(filters.TEXT & ~filters.COMMAND, chapa_step)], TELEFONE: [MessageHandler(filters.ALL, telefone_step)], MAQ_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, maq_pat_step)], MAQ_F1: [MessageHandler(filters.PHOTO, maq_f1_step)], MAQ_F2: [MessageHandler(filters.PHOTO, maq_f2_step)], MAQ_F3: [MessageHandler(filters.PHOTO, maq_f3_step)], OTDR_PAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, otdr_pat_step)], OTDR_F1: [MessageHandler(filters.PHOTO, otdr_f1_step)], OTDR_F2: [MessageHandler(filters.PHOTO, otdr_f2_step)], OTDR_F3: [MessageHandler(filters.PHOTO, otdr_f3_step)], FINAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, final_step)]}, fallbacks=[CommandHandler("cancel", cancel)])
     application.add_handler(conv)
-    print(">>> BOT ON - TRAVA 1 CHAPA + MASCARA COLORIDA")
+    print(">>> BOT ON - MASCARA ESTILOSA MENOR")
     application.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__": main()
